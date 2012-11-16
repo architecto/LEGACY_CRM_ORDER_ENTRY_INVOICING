@@ -1,0 +1,1378 @@
+*(QQCALC.EEP - CALCULATES QUICK EMBLEM COSTS)
+--rsm jan 29, 2010 edit to fix quoting
+--rsm Feb 22, 2010 added logic for Velcro pricing for 1,2,5 BDG
+--rsm jan4 2011 add krelman logic and variables
+SET TRACE ON
+Clear Var vPcs
+--If vExpPcs > 0 then
+--   Property MOPcs Visible 'False'
+--Endif
+If vExpPcs > 49 then
+   Goto SkipMO
+Endif
+SET VAR vPcs TEXT = .%1
+Set Var vPcs Int = (.vPcs + 0)
+If vPcs > 0 then
+   Set Var vExpPcs = .vPcs
+Endif
+Label SkipMO
+SET VAR vexptpqt TEXT = 'a'
+
+LABEL resetprc
+SET VAR vgsa TEXT
+SET VAR v2base CURRENCY = NULL
+SET VAR vbases CURRENCY = NULL
+SET VAR vbasesr CURRENCY = NULL
+SET VAR vbasea CURRENCY = NULL
+SET VAR vbasear CURRENCY = NULL
+SET VAR vbasem CURRENCY = NULL
+SET VAR vbasemr CURRENCY = NULL
+SET VAR vbaseb CURRENCY = NULL
+SET VAR vbasebr CURRENCY = NULL
+SET VAR vnewbases CURRENCY = NULL
+SET VAR vnewbasesr CURRENCY = NULL
+SET VAR vnewbasea CURRENCY = NULL
+SET VAR vnewbasear CURRENCY = NULL
+SET VAR vnewbasem CURRENCY = NULL
+SET VAR vnewbasemr CURRENCY = NULL
+SET VAR vnewbaseb CURRENCY = NULL
+SET VAR vnewbasebr CURRENCY = NULL
+SET VAR vpecata INTEGER
+SET VAR vpecatb INTEGER
+SET VAR vaddcol CURRENCY = NULL
+SET VAR vaddbrd CURRENCY = NULL
+SET VAR vaddloop CURRENCY = NULL
+SET VAR vnewbase CURRENCY = NULL
+SET VAR vbase CURRENCY = NULL
+--rsm scout division variables
+SET VAR vnewsctbase Curr = NULL
+SET VAR vnewrsctbase Curr = NULL
+SET VAR vsctbase Real = NULL
+SET VAR vsctcol CURRENCY = NULL
+SET VAR vsctbrd CURRENCY = NULL
+SET VAR vsctfab CURRENCY = NULL
+SET VAR vsctthrd CURRENCY = NULL
+SET VAR vsctloop CURRENCY = NULL
+SET VAR vsctbk real = NULL
+--rsm jan 4 2011 Krelman variables
+SET VAR vNewKbase CURR = NULL
+SET VAR vNewRKbase CURR = NULL
+SET VAR vkbase REAL = NULL
+SET VAR vKcol CURR = NULL
+SET VAR vKbrd CURR = NULL
+SET VAR vKfab CURR = NULL
+SET VAR vKthrd CURR = NULL
+SET VAR vKloop CURR = NULL
+SET VAR vKbk REAL = NULL
+--rsm Jan4 2011 end Krelman variables
+SET VAR v1newbse CURRENCY = NULL
+SET VAR v1fab CURRENCY = NULL
+SET VAR vaddthrd CURRENCY = NULL
+SET VAR v1thrd CURRENCY = NULL
+SET VAR vaddbk CURRENCY = NULL
+SET VAR v1base CURRENCY = NULL
+SET VAR vaddfab  CURRENCY = NULL
+SET VAR vexpfrt CURRENCY = NULL
+SET VAR vwgt INTEGER = NULL
+SET VAR v1col CURRENCY = NULL
+SET VAR v1bord CURRENCY = NULL
+SET VAR v2col CURRENCY = NULL
+SET VAR v2bord CURRENCY = NULL
+SET VAR vexppcs INTEGER
+SET VAR vexphvy TEXT
+SET VAR v2newbase CURRENCY = NULL
+SET VAR vexppct INTEGER
+SET VAR vaddfob CURRENCY = NULL
+SET VAR v1back CURRENCY = NULL
+SET VAR v2back CURRENCY = NULL
+SET VAR vaddon INTEGER
+SET VAR v10pct REAL = NULL
+SET VAR vexptpqt TEXT
+SET VAR vhvy CURRENCY = NULL
+SET VAR v1hvy CURRENCY = NULL
+SET VAR v1pct REAL = NULL
+SET VAR v2pct REAL = NULL
+SET VAR v5pct REAL = NULL
+SET VAR vcat DOUBLE
+SET VAR vcon CURRENCY = NULL
+SET VAR vaddpct REAL = NULL
+SET VAR v10thrd CURRENCY = NULL
+SET VAR v10fab CURRENCY = NULL
+SET VAR v5thrd CURRENCY = NULL
+SET VAR v5fab CURRENCY = NULL
+SET VAR v5loop CURRENCY = NULL
+SET VAR v5hvy CURRENCY = NULL
+SET VAR v5base CURRENCY = NULL
+SET VAR v5bord CURRENCY = NULL
+SET VAR v10hvy CURRENCY = NULL
+SET VAR v10newbse CURRENCY = NULL
+SET VAR v5newbase CURRENCY = NULL
+SET VAR v5back CURRENCY = NULL
+SET VAR v5col CURRENCY = NULL
+SET VAR v10base CURRENCY = NULL
+SET VAR v10loop CURRENCY = NULL
+SET VAR v10brd CURRENCY = NULL
+SET VAR v15fab CURRENCY = NULL
+SET VAR v15back CURRENCY = NULL
+SET VAR v15pct CURRENCY = NULL
+SET VAR v15base CURRENCY = NULL
+SET VAR v15thrd CURRENCY = NULL
+SET VAR v15brd CURRENCY = NULL
+SET VAR v15hvy CURRENCY = NULL
+SET VAR v15newbse CURRENCY = NULL
+SET VAR vaddtag CURRENCY = NULL
+SET VAR v2hvy CURRENCY = NULL
+SET VAR v2loop CURRENCY = NULL
+SET VAR vaddpull CURRENCY = NULL
+SET VAR v10back CURRENCY = NULL
+SET VAR v10col CURRENCY = NULL
+SET VAR vcoluse10 INTEGER = 0
+SET VAR v2thrd CURRENCY = NULL
+SET VAR vpull TEXT = NULL
+SET VAR vfrt CURRENCY = NULL
+SET VAR v1loop CURRENCY = NULL
+SET VAR vdest CURRENCY = '0.00'
+
+IF vexphist LIKE 'Photo%' THEN
+  GOTO phototp
+ENDIF
+IF vexppcs < 50  OR vexppcs IS NULL THEN
+--  PAUSE 2 USING '50 Piece Minimum ...!' +
+--  CAPTION ' Pieces Error ' +
+--  ICON stop +
+--  BUTTON 'Press any key to continue ...' +
+--  OPTION BACK_COLOR WHITE +
+--  |MESSAGE_COLOR WHITE +
+--  |MESSAGE_FONT_COLOR RED +
+--  |BUTTON_COLOR WHITE +
+--  |BUTTON_FONT_COLOR GREEN
+--  SKIP TO exppcs
+  GOTO leave
+ENDIF
+
+LABEL phototp
+*( vExpPcs < 15  OR vExpPcs IS NULL THEN
+      PAUSE 2 USING '15 Piece Minimum ...!' +
+      CAPTION ' Pieces Error ' +
+      ICON STOP +
+      BUTTON 'Press any key to continue ...' +
+      OPTION BACK_COLOR WHITE +
+      |MESSAGE_COLOR WHITE +
+      |MESSAGE_FONT_COLOR RED +
+      |BUTTON_COLOR WHITE +
+      |BUTTON_FONT_COLOR GREEN
+      Skip to ExpPcs
+      GOTO Leave
+ENDIF)
+set var vmsga = NULL, vmsgb = NULL
+
+LABEL skippcs
+IF vexppct NOT > 0 THEN
+  IF vexphist NOT LIKE 'Photo%' THEN
+    GOTO leave
+  ENDIF
+ENDIF
+IF vexppcs < 200 THEN
+  set var vfrt = '9.50'
+  GOTO frtlv
+ENDIF
+IF vexppcs < 500 THEN
+  set var vfrt = '10.50'
+  GOTO frtlv
+ENDIF
+IF vexppcs < 1000 THEN
+  set var vfrt = '13.50'
+  GOTO frtlv
+ENDIF
+IF vexppcs < 1500 THEN
+  set var vfrt = '17.50'
+  GOTO frtlv
+ENDIF
+IF vexppcs < 2500 THEN
+  set var vfrt = '21.50'
+  GOTO frtlv
+ENDIF
+IF vexppcs < 3000 THEN
+  set var vfrt = '32.50'
+  GOTO frtlv
+ENDIF
+IF vexppcs < 6000 THEN
+  set var vfrt = '44.00'
+  GOTO frtlv
+ENDIF
+IF vexppcs <8000 THEN
+  set var vfrt = '66.50'
+  GOTO frtlv
+ENDIF
+IF vexppcs < 10000 THEN
+  set var vfrt = '87.00'
+  GOTO frtlv
+ENDIF
+IF vexppcs = 10000 THEN
+  set var vfrt = '96.50'
+  GOTO frtlv
+ENDIF
+LABEL frtlv
+IF vexphist LIKE 'Photo%' THEN
+  IF vexppcs > 10000 THEN
+    PAUSE 2 USING 'Photo Emblem Qty Cannot Exceed 10000 Pcs ...!' +
+    CAPTION ' Pieces Error ' +
+    ICON stop +
+    BUTTON 'Press any key to continue ...' +
+    OPTION BACK_COLOR WHITE +
+    |MESSAGE_COLOR WHITE +
+    |MESSAGE_FONT_COLOR RED +
+    |BUTTON_COLOR WHITE +
+    |BUTTON_FONT_COLOR GREEN
+    SKIP TO exppcs
+    GOTO leave
+  ENDIF
+  GOTO pecalc
+ENDIF
+IF vexppcs BETWEEN 50 AND 99 THEN
+  Set var vsctbase = qty1 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty1 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtya IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtya IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtya IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtya IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtya IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtya IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtya IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtya IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtya IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtya IN abdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtya IN abdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtya IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtya IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtya IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtya IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtya IN mbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtya IN mbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtya IN mbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtya IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtya IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtya IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtya IN bbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtya IN bbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtya IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 100 AND 199 THEN
+  Set var vsctbase = qty2 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty2 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyb IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyb IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyb IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyb IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyb IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyb IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyb IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyb IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyb IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyb IN abdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyb IN abdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyb IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyb IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyb IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyb IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyb IN mbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyb IN mbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyb IN mbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyb IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyb IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyb IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyb IN bbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyb IN bbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyb IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 200 AND 299 THEN
+  Set var vsctbase = qty3 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty3 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyc IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyc IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyc IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyc IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyc IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyc IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyc IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyc IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyc IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyc IN abdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyc IN abdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyc IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyc IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyc IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyc IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyc IN mbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyc IN mbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyc IN mbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyc IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyc IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyc IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyc IN bbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyc IN bbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyc IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 300 AND 499 THEN
+  Set var vsctbase = qty4 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty4 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyd IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyd IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyd IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyd IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyd IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyd IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyd IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyd IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyd IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyd IN abdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyd IN abdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyd IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyd IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyd IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyd IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyd IN mbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyd IN mbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyd IN mbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyd IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyd IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyd IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v1base = qtyd IN bbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyd IN bbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyd IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 500 AND 999 THEN
+  Set var vsctbase = qty5 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty5 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtye IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtye IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtye IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    --set var v1base = qtye IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtye IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtye IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtye IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtye IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtye IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+    --set var v1base = qtye IN abdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtye IN abdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtye IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtye IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtye IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtye IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v1base = qtye IN mbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtye IN mbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtye IN mbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtye IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtye IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtye IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+    --set var v1base = qtye IN bbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtye IN bbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtye IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 1000 AND 1999 THEN
+  Set var vsctbase = qty6 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty6 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyf IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyf IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyf IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    --set var v1base = qtyf IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    --set var v2base = qtyf IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyf IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyf IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyf IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyf IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v1base = qtyf IN abdg1 WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v2base = qtyf IN abdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyf IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyf IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyf IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyf IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+  --  set var v1base = qtyf IN mbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v2base = qtyf IN mbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyf IN mbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyf IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyf IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyf IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v1base = qtyf IN bbdg1 WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v2base = qtyf IN bbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyf IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+--rsm jan 29, 2010 - this used to be between 2000 and 2000
+IF vexppcs BETWEEN 2000 AND 2999 THEN
+  Set var vsctbase = qty7 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty7 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyg IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyg IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyg IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v2base = qtyg IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyg IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyg IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyg IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyg IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v2base = qtyg IN abdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyg IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyg IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyg IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyg IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+   -- set var v2base = qtyg IN mbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyg IN mbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyg IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v10base = qtyg IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v15base = qtyg IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+  --  set var v2base = qtyg IN bbdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyg IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+-- rsm jan 29, 2010 - commented out this whole block after changin previous block to
+--cover this range
+{IF vexppcs BETWEEN 2001 AND 2999 THEN
+  Set var vsctbase = qty7 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyg IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyg IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyg IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyg IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyg IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyg IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyg IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyg IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+}
+--rsm jan 29, 2010 - changed this t0 3000 to 4999 from 3000 to 3000
+IF vexppcs BETWEEN 3000 AND 4999 THEN
+  Set var vsctbase = qty8 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty8 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyh IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyh IN a15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyh IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyh IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyh IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyh IN b15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyh IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyh IN abdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyh IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyh IN d15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyh IN mdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyh IN mdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyh IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    IF vcat > 5.0 THEN
+      GOTO nextcalc
+    ENDIF
+    set var v15base = qtyh IN c15day WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyh IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyh IN bbdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+--rsm Jan 29, 2010 - commented out next block after altering range of previous block
+{IF vexppcs BETWEEN 3001 AND 4999 THEN
+  Set var vsctbase = qty8 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyh IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyh IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyh IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyh IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+}
+IF vexppcs BETWEEN 5000 AND 9999 THEN
+  Set var vsctbase = qty9 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty9 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyi IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyi IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyi IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyi IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyi IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyi IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyi IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyi IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+IF vexppcs > 9999 THEN
+  Set var vsctbase = qty10 IN Sctdiv WHERE SIZE = .vcat AND pct = .vexppct
+  SET V vkbase = qty10 IN krelman WHERE SIZE = .vcat AND pct = .vexppct
+  IF vexptpqt = 'S' THEN
+    set var vbase = qtyj IN standard WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyj IN bdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vbase = qtyj IN astandrd WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyj IN abdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vbase = qtyj IN mstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyj IN mbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vbase = qtyj IN bstandrd WHERE SIZE = .vcat AND pct = .vexppct
+    set var v10base = qtyj IN bbdg10 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO nextcalc
+  ENDIF
+ENDIF
+LABEL nextcalc
+-- rsm jan 29, 2010 - comment this out as it is old legacy code and should not execute
+{IF vexppcs BETWEEN 15 AND 54 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v1base = qtya IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtya IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtya IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+
+ENDIF
+IF vexppcs BETWEEN 55 AND 109 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v1base = qtyb IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyb IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyb IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 110 AND 199 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v1base = qtyc IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyc IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyc IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 200 AND 299 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v1base = qtyd IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtyd IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyd IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+ENDIF
+IF vexppcs BETWEEN 300 AND 300 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v1base = qtye IN bdg1 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v2base = qtye IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtye IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+
+ENDIF
+IF vexppcs BETWEEN 300 AND 499 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v2base = qtye IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtye IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+
+ENDIF
+IF vexppcs BETWEEN 500 AND 500 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v2base = qtyf IN bdg2 WHERE SIZE = .vcat AND pct = .vexppct
+    set var v5base = qtyf IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+
+ENDIF
+IF vexppcs BETWEEN 501 AND 999 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v5base = qtyf IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+
+ENDIF
+IF vexppcs BETWEEN 1000 AND 1000 THEN
+  IF vexptpqt in (S,A,M,B) THEN
+    set var v5base = qtyg IN bdg5 WHERE SIZE = .vcat AND pct = .vexppct
+    GOTO contcalc
+  ENDIF
+ENDIF
+}
+GOTO contcalc
+LABEL pecalc
+-- rsm jan 29, 2010 - changed from 44 to 100 to 50 to 100
+IF vexppcs BETWEEN 50 AND 99 THEN
+  set var vbases = qtya, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtya, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtya, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtya, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtya, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtya, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtya, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtya, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 100 AND 199 THEN
+  set var vbases = qtyb, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtyb, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtyb, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtyb, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtyb, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtyb, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtyb, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtyb, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 200 AND 299 THEN
+  set var vbases = qtyc, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtyc, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtyc, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtyc, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtyc, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtyc, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtyc, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtyc, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 300 AND 499 THEN
+  set var vbases = qtyd, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtyd, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtyd, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtyd, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtyd, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtyd, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtyd, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtyd, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 500 AND 999 THEN
+  set var vbases = qtye, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtye, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtye, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtye, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtye, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtye, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtye, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtye, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 1000 AND 1999 THEN
+  set var vbases = qtyf, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtyf, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtyf, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtyf, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtyf, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtyf, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtyf, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtyf, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 2000 AND 2999 THEN
+  set var vbases = qtyg, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtyg, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtyg, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtyg, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtyg, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtyg, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtyg, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtyg, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 3000 AND 4999 THEN
+  set var vbases = qtyh, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtyh, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtyh, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtyh, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtyh, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtyh, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtyh, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtyh, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+IF vexppcs BETWEEN 5000 AND 10000 THEN
+  set var vbases = qtyi, vaddbk = pehs IN peprcs WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasea = qtyi, vaddbk = pehs IN peprca WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasem = qtyi, vaddbk = pehs IN peprcm WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbaseb = qtyi, vaddbk = pehs IN peprcb WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasebr = qtyi, vaddbk = pehs IN peprcbr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasesr = qtyi, vaddbk = pehs IN peprcsr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasear = qtyi, vaddbk = pehs IN peprcar WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  set var vbasemr = qtyi, vaddbk = pehs IN peprcmr WHERE sqinch BETWEEN .vpecata AND .vpecatb
+  GOTO pefinish
+ENDIF
+LABEL contcalc
+IF vcolors IS NULL THEN
+  GOTO skipcol
+ENDIF
+IF vcolors > 12 THEN
+  set var vcoluse13 = (.vcolors - 12)
+  set var v1col = (.vcoluse13 * .60)
+  set var v5col = (.vcoluse13 * .35)
+  set var v2col = (.vcoluse13 * .40)
+ENDIF
+IF vcolors > 9 THEN
+  set var vcoluse10 = (.vcolors - 9)
+  set var v10col = (.vcoluse10 * .08)
+  set var vaddcol = (.vcoluse10 * .08)
+  set var vSctcol = (.vcoluse10 * .07)
+  --rsm jan 4 2011 krelman color
+  SET V vKcol = (.vcoluse10 * .05)
+ENDIF
+LABEL skipcol
+IF vborder = 'None' OR vborder IS NULL THEN
+  GOTO skipbord
+ENDIF
+IF vaddon > 0 THEN
+  set var vaddpct = ((.vbase * .vaddon) / 100)
+  set var v1pct = ((.v1base * .vaddon) / 100)
+  set var v5pct = ((.v5base * .vaddon) / 100)
+  set var v10pct = ((.v10base * .vaddon) / 100)
+  set var v15pct = ((.v15base * .vaddon) / 100)
+  set var v2pct = ((.v2base * .vaddon) / 100)
+  set var vKpct = ((.vKbase * .vaddon) / 100)
+ENDIF
+IF vborder LIKE 'FAUX%' THEN
+  set var vsctbrd = (.vsctbase * .10)
+  SET VAR vKbrd = (.vKbase * .10)
+  set var vaddbrd = (.vbase * .10)
+  set var v1bord  = (.v1base * .10)
+  set var v5bord  = (.v5base * .10)
+  set var v10brd = (.v10base * .10)
+  set var v15brd = (.v15base * .10)
+  set var v2bord = (.v2base * .10)
+  GOTO skipbord
+ENDIF
+-- Took out laser/hot needle add on on 09/22/2009 DLM
+--IF vborder LIKE 'OVER%' OR vborder LIKE 'MERR%' THEN
+--  GOTO skipbord
+--ENDIF
+--set var vaddbrd = '0.12'
+--IF vexptpqt = 'M' THEN
+--  set var vaddbrd = '0.06'
+--ENDIF
+--set var v1bord  = '0.68'
+--set var v5bord  = '0.35'
+--set var v10brd = '0.20'
+--set var v15brd = '0.16'
+--set var v2bord = '0.45'
+LABEL skipbord
+IF vloop = 'YES' OR vloop = 'STCH' OR vloop = 'OVLK' OR vloop = 'SOUT' THEN
+  set var vsctloop = '0.07'
+  SET VAR vKloop = '0.07'
+  IF vexptpqt = 'B' THEN
+    set var vaddloop = '0.07'
+    set var v10loop = '0.07'
+    set var v5loop = '0.17'
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vaddloop = '0.07'
+    set var v10loop = '0.07'
+    set var v5loop = '0.17'
+  ENDIF
+  IF vexptpqt = 'S' THEN
+    set var vaddloop = '0.11'
+    set var v10loop = '0.11'
+    set var v5loop = '0.25'
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vaddloop = '0.09'
+    set var v10loop = '0.09'
+    set var v5loop = '0.21'
+  ENDIF
+  set var v1loop = NULL
+  set var v2loop = NULL
+ENDIF
+IF vfob = 'Y' THEN
+  set var vaddfob = '0.08'
+ENDIF
+IF vtag = 'Y' THEN
+  set var vaddtag = '0.25'
+ENDIF
+IF vpull = 'Y' THEN
+  set var vaddpull = '0.15'
+ENDIF
+IF vexpconn = 'N' THEN
+  set var vcon = '0.10'
+ENDIF
+IF vfab = 'YES' THEN
+  set var vsctfab  = (.vsctbase * .10)
+  SET VAR vKfab = (.vKbase * .10)
+  set var vaddfab = (.vbase * .10)
+  set var v10fab = (.v10base * .10)
+  set var v15fab = (.v15base * .10)
+ENDIF
+IF vexphvy = 'Y' THEN
+  set var vhvy = (.vbase * .10)
+  set var v10hvy = (.v10base * .10)
+  set var v15hvy = (.v15base * .10)
+ENDIF
+IF vmtl > 0 THEN
+  set var vsctthrd  = ((.vsctbase * .10) * .vmtl)
+  SET V vKthrd  = ((.vKbase * .15) * .vmtl)
+  set var vaddthrd  = ((.vbase * .10) * .vmtl)
+  set var v10thrd  = ((.v10base * .10) * .vmtl)
+  set var v15thrd  = ((.v15base * .10) * .vmtl)
+ENDIF
+IF vback LIKE 'Sew-On%' THEN
+---rsm Jan 4 2011 krelman code
+  SET VAR vKbk = PLAM1 in krelman WHERE SIZE = .vcat
+  IF vexptpqt = 'S' THEN
+    set var vaddbk = plam IN standard WHERE SIZE = .vcat
+    set var v10back = plam IN bdg10  WHERE SIZE = .vcat
+    set var v15back = plam IN a15day  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vaddbk = plam IN astandrd WHERE SIZE = .vcat
+    set var v10back = plam IN abdg10  WHERE SIZE = .vcat
+    set var v15back = plam IN b15day  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vaddbk = plam IN mstandrd WHERE SIZE = .vcat
+    set var v10back = plam IN mbdg10  WHERE SIZE = .vcat
+    set var v15back = plam IN d15day  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vaddbk = plam IN bstandrd WHERE SIZE = .vcat
+    set var v10back = plam IN bbdg10  WHERE SIZE = .vcat
+    set var v15back = plam IN c15day  WHERE SIZE = .vcat
+  ENDIF
+ENDIF
+IF vback LIKE 'Home%' OR vback LIKE 'Indust%' OR vback LIKE 'Commer%' THEN
+  SET VAR vKbk = htseal1 in krelman WHERE SIZE = .vcat
+  set var vsctbk = htseal1 IN sctdiv WHERE SIZE = .vcat
+  IF vexptpqt = 'S' THEN
+    set var vaddbk = htseal IN standard WHERE SIZE = .vcat
+    set var v1back = htseal IN bdg1 WHERE SIZE = .vcat
+    set var v10back = htseal IN bdg10  WHERE SIZE = .vcat
+    set var v15back = htseal IN a15day  WHERE SIZE = .vcat
+    set var v2back = htseal IN bdg2  WHERE SIZE = .vcat
+    set var v5back = htseal IN bdg5  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vaddbk = htseal IN astandrd WHERE SIZE = .vcat
+    set var v1back = htseal IN abdg1 WHERE SIZE = .vcat
+    set var v10back = htseal IN abdg10  WHERE SIZE = .vcat
+    set var v15back = htseal IN b15day  WHERE SIZE = .vcat
+    set var v2back = htseal IN abdg2  WHERE SIZE = .vcat
+    set var v5back = htseal IN abdg5  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vaddbk = htseal IN mstandrd WHERE SIZE = .vcat
+    set var v1back = htseal IN mbdg1 WHERE SIZE = .vcat
+    set var v10back = htseal IN mbdg10  WHERE SIZE = .vcat
+    set var v15back = htseal IN d15day  WHERE SIZE = .vcat
+    set var v2back = htseal IN mbdg2  WHERE SIZE = .vcat
+    set var v5back = htseal IN mbdg5  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vaddbk = htseal IN bstandrd WHERE SIZE = .vcat
+    set var v1back = htseal IN bbdg1 WHERE SIZE = .vcat
+    set var v10back = htseal IN bbdg10  WHERE SIZE = .vcat
+    set var v15back = htseal IN c15day  WHERE SIZE = .vcat
+    set var v2back = htseal IN bbdg2  WHERE SIZE = .vcat
+    set var v5back = htseal IN bbdg5  WHERE SIZE = .vcat
+  ENDIF
+ENDIF
+IF vback LIKE 'PRESSURE SENS%' THEN
+  SET VAR vKbk = prsens1 in krelman WHERE SIZE = .vcat
+  set var vsctbk = prsens1 IN sctdiv WHERE SIZE = .vcat
+  IF vexptpqt = 'S' THEN
+    set var vaddbk = prsens IN standard WHERE SIZE = .vcat
+    set var v10back = prsens IN bdg10  WHERE SIZE = .vcat
+    set var v15back = prsens IN a15day  WHERE SIZE = .vcat
+    set var v2back = prsens IN bdg2  WHERE SIZE = .vcat
+    set var v1back = prsens IN bdg1  WHERE SIZE = .vcat
+    set var v5back = prsens IN bdg5  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vaddbk = prsens IN astandrd WHERE SIZE = .vcat
+    set var v10back = prsens IN abdg10  WHERE SIZE = .vcat
+    set var v15back = prsens IN b15day  WHERE SIZE = .vcat
+    set var v2back = prsens IN abdg2  WHERE SIZE = .vcat
+    set var v1back = prsens IN abdg1  WHERE SIZE = .vcat
+    set var v5back = prsens IN abdg5  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vaddbk = prsens IN mstandrd WHERE SIZE = .vcat
+    set var v10back = prsens IN mbdg10  WHERE SIZE = .vcat
+    set var v15back = prsens IN d15day  WHERE SIZE = .vcat
+    set var v2back = prsens IN mbdg2  WHERE SIZE = .vcat
+    set var v1back = prsens IN mbdg1  WHERE SIZE = .vcat
+    set var v5back = prsens IN mbdg5  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vaddbk = prsens IN bstandrd WHERE SIZE = .vcat
+    set var v10back = prsens IN bbdg10  WHERE SIZE = .vcat
+    set var v15back = prsens IN c15day  WHERE SIZE = .vcat
+    set var v2back = prsens IN bbdg2  WHERE SIZE = .vcat
+    set var v1back = prsens IN bbdg1  WHERE SIZE = .vcat
+    set var v5back = prsens IN bbdg5  WHERE SIZE = .vcat
+  ENDIF
+ENDIF
+IF vback LIKE 'VELCRO%' THEN
+  set var v1back = velcro IN bdg1  WHERE SIZE = .vcat
+  set var v2back = velcro IN bdg2  WHERE SIZE = .vcat
+  set var v5back = velcro IN bdg5  WHERE SIZE = .vcat
+  set var vsctbk = velcro1 IN sctdiv WHERE SIZE = .vcat
+  SET VAR vKbk = velcro1 in krelman WHERE SIZE = .vcat
+  IF vexptpqt = 'S' THEN
+    set var vaddbk = velcro IN standard WHERE SIZE = .vcat
+    set var v10back = velcro IN bdg10  WHERE SIZE = .vcat
+    set var v15back = velcro IN a15day  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'A' THEN
+    set var vaddbk = velcro IN astandrd WHERE SIZE = .vcat
+    set var v10back = velcro IN abdg10  WHERE SIZE = .vcat
+    set var v15back = velcro IN b15day  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'M' THEN
+    set var vaddbk = velcro IN mstandrd WHERE SIZE = .vcat
+    set var v10back = velcro IN mbdg10  WHERE SIZE = .vcat
+    set var v15back = velcro IN d15day  WHERE SIZE = .vcat
+  ENDIF
+  IF vexptpqt = 'B' THEN
+    set var vaddbk = velcro IN bstandrd WHERE SIZE = .vcat
+    set var v10back = velcro IN bbdg10  WHERE SIZE = .vcat
+    set var v15back = velcro IN c15day  WHERE SIZE = .vcat
+  ENDIF
+  IF vback LIKE 'VELCRO - BOTH%' OR vback LIKE 'VELCRO-BOTH%' THEN
+    set var v1back = (.v1back * 2)
+    set var v2back = (.v2back * 2)
+    set var v5back = (.v5back * 2)
+    set var vsctbk = (.vsctbk * 2)
+    SET VAR vKbk = (.vKbk * 2)
+    set var vaddbk = (.vaddbk * 2)
+    set var v10back = (.v10back * 2)
+    set var v15back = (.v15back * 2)
+  ENDIF
+ENDIF
+IF vfobd = 'Y' THEN
+  set var vdest = (.vfrt / .vexppcs)
+ENDIF
+set var vsctbast curr
+set var vsctbk curr
+SET VAR vKbk CURR
+SET VAR vKcol CURR
+SEt VAR vKloop CURR
+Set var vrsctbase = (.vsctbase * 1.35)
+
+
+set var vnewrsctbase = (.vrsctbase + .vsctcol + .vsctloop + .vsctbrd + .vsctbk + .vaddpct)
+set var vnewrsctbase = (.vnewrsctbase + .vsctfab + .vsctthrd + .vcon + .vhvy)
+set var vnewrsctbase = (.vnewrsctbase + .vaddfob + .vaddpull + .vaddtag + .vdest)
+set var vnewsctbase = (.vsctbase + .vsctcol + .vsctloop + .vsctbrd + .vsctbk + .vaddpct)
+set var vnewsctbase = (.vnewsctbase + .vsctfab + .vsctthrd + .vcon + .vhvy)
+set var vnewsctbase = (.vnewsctbase + .vaddfob + .vaddpull + .vaddtag + .vdest)
+--rsm Jan 4 2011 Krelman Code
+SET VAR vRKbase = (.vKbase * 1.35)
+set var vnewRKbase = (.vRKbase + .vKcol + .vKloop + .vKbrd + .vKbk + .vaddpct)
+set var vnewRKbase = (.vnewRKbase + .vKfab + .vKthrd + .vcon + .vhvy)
+set var vnewRKbase = (.vnewRKbase + .vaddfob + .vaddpull + .vaddtag + .vdest)
+--rsm Jan 5 2011 30% markup for Krelman products
+SET VAR vnewRKbase = (.vnewRKbase * 1.3)
+set var vnewKbase = (.vKbase + .vKcol + .vKloop + .vKbrd + .vKbk + .vaddpct)
+set var vnewKbase = (.vnewKbase + .vKfab + .vKthrd + .vcon + .vhvy)
+set var vnewKbase = (.vnewKbase + .vaddfob + .vaddpull + .vaddtag + .vdest)
+--rsm Jan 5 2011 30% markup for Krelman products
+SET VAR vnewKbase = (.vnewKbase * 1.3)
+--rsm Jan 5 2011 end of Krelman code
+set var vnewbase = (.vbase + .vaddcol + .vaddloop + .vaddbrd + .vaddbk + .vaddpct)
+set var vnewbase = (.vnewbase + .vaddfab + .vaddthrd + .vcon + .vhvy)
+set var vnewbase = (.vnewbase + .vaddfob + .vaddpull + .vaddtag + .vdest)
+IF v10base IS NULL THEN
+  GOTO skip10
+ENDIF
+set var v10newbse = (.v10base + .v10col + .v10loop + .v10brd + .v10back + .v10pct)
+set var v10newbse = (.v10newbse + .v10fab + .v10thrd + .vcon + .v10hvy)
+set var v10newbse = (.v10newbse + .vaddfob + .vaddpull + .vaddtag)
+LABEL skip10
+IF v15base IS NULL THEN
+  GOTO skip15
+ENDIF
+set var v15newbse = (.v15base + .v10col + .v10loop + .v15brd + .v15back + .v15pct)
+set var v15newbse = (.v15newbse + .v15fab + .v15thrd + .vcon + .v15hvy)
+set var v15newbse = (.v15newbse + .vaddfob + .vaddpull + .vaddtag)
+LABEL skip15
+IF v1base IS NULL THEN
+  GOTO skip1
+ENDIF
+set var v1newbse = (.v1base + .v1col + .v1loop + .v1bord + .v1back + .v1pct)
+set var v1newbse = (.v1newbse + .v1fab + .v1thrd + .vcon + v1hvy)
+set var v1newbse = (.v1newbse + .vaddpull)
+LABEL skip1
+IF v2base IS NULL THEN
+  GOTO skip2
+ENDIF
+set var v2newbase = (.v2base + .v2col + .v2loop + .v2bord + .v2back + .v2pct)
+set var v2newbase = (.v2newbase + .vcon + .v2hvy + .v2thrd)
+Label skip2
+IF v5base IS NULL THEN
+  GOTO skip5
+ENDIF
+set var v5newbase = (.v5base + .v5col + .v5loop + .v5bord + .v5back + .v5pct)
+set var v5newbase = (.v5newbase + .vcon + .v5hvy + .v5thrd)
+label skip5
+IF vpull = 'Y' OR vtag = 'Y' THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+  SET VAR v5newbase = NULL
+ENDIF
+IF vexppcs > 499 THEN
+  SET VAR v1newbse = NULL
+  --rsm feb 10, 2010--add this bloxk as this is no longer quotable
+ENDIF
+IF vexppcs > 999 THEN
+  SET VAR v2newbse = NULL
+  --rsm feb 10, 2010--add this bloxk as this is no longer quotable
+ENDIF
+IF vexppcs > 3000 THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+  SET VAR v5newbase = NULL
+  SET VAR v10newbase = NULL
+  --rsm Jan 29, 2010--comment this line out as this is now quotable
+ -- SET VAR v15newbase = NULL
+ENDIF
+IF vexppcs > 2000 THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+  SET VAR v5newbase = NULL
+--rsm Jan 29, 2010--comment this line out as this is now quotable
+  --SET VAR v10newbase = NULL
+ENDIF
+IF vexppcs > 1000 THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+--rsm Jan 29, 2010--comment this line out as this is now quotable
+  --SET VAR v5newbase = NULL
+ENDIF
+--rsm Jan 29, 2010 - comment out as this is now quotable
+{IF vexppcs > 500 THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+ENDIF
+
+IF vexppcs > 300 THEN
+  SET VAR v1newbse = NULL
+ENDIF
+}
+IF vloop <> 'No' THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+ENDIF
+IF vfab = 'Yes' THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+  SET VAR v5newbase = NULL
+ENDIF
+{IF vback LIKE 'Velcro%' THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+  SET VAR v5newbase = NULL
+ENDIF
+}
+IF vcat > 5 THEN
+  SET VAR v1newbse = NULL
+  SET VAR v2newbase = NULL
+  SET VAR v5newbase = NULL
+ENDIF
+IF vexptpqt = 'a' THEN
+  SET VAR vanewbase = .vnewbase
+  IF vgsa = '1' THEN
+    SET VAR vanewbase = (.vanewbase - (.vanewbase * .14))
+  ENDIF
+  SET VAR va10newbse = .v10newbse
+  SET VAR va15newbse = .v15newbse
+  SET VAR va1newbse = .v1newbse
+  SET VAR va2newbase = .v2newbase
+  SET VAR va5newbase = .v5newbase
+  SET VAR vexptpqt = 'm'
+  GOTO resetprc
+ENDIF
+IF vexptpqt = 'm' THEN
+  SET VAR vmnewbase = .vnewbase
+  SET VAR vm10newbse = .v10newbse
+  SET VAR vm15newbse = .v15newbse
+  SET VAR vm1newbse = .v1newbse
+  SET VAR vm2newbase = .v2newbase
+  SET VAR vm5newbase = .v5newbase
+  SET VAR vexptpqt = 'B'
+  GOTO resetprc
+ENDIF
+IF vexptpqt = 'B' THEN
+  SET VAR vbnewbase = .vnewbase
+  SET VAR vb10newbse = .v10newbse
+  SET VAR vb15newbse = .v15newbse
+  SET VAR vb1newbse = .v1newbse
+  SET VAR vb2newbase = .v2newbase
+  SET VAR vb5newbase = .v5newbase
+  SET VAR vexptpqt = 'S'
+  GOTO resetprc
+ENDIF
+
+GOTO leave
+LABEL pefinish
+SET VAR vnewbases = .vbases
+SET VAR vnewbasesr = .vbasesr
+SET VAR vnewbasea = .vbasea
+SET VAR vnewbasear = .vbasear
+SET VAR vnewbasem = .vbasem
+SET VAR vnewbasemr = .vbasemr
+SET VAR vnewbasebr = .vbasebr
+SET VAR vnewbaseb = .vbaseb
+
+IF vback LIKE 'HEAT SEAL%' THEN
+  SET VAR vnewbases = (.vbases + .vaddbk)
+  SET VAR vnewbasea = (.vbasea + .vaddbk)
+  SET VAR vnewbasem = (.vbasem + .vaddbk)
+  SET VAR vnewbaseb = (.vbaseb + .vaddbk)
+  SET VAR vnewbasebr = (.vbasebr + .vaddbk)
+  SET VAR vnewbasesr = (.vbasesr + .vaddbk)
+  SET VAR vnewbasear = (.vbasear + .vaddbk)
+  SET VAR vnewbasemr = (.vbasemr + .vaddbk)
+ENDIF
+IF vback LIKE 'PRESSURE SENS%' THEN
+  SET VAR vnewbases = (.vbases + (.vaddbk * 2))
+  SET VAR vnewbasea = (.vbasea + (.vaddbk * 2))
+  SET VAR vnewbasem = (.vbasem + (.vaddbk * 2))
+  SET VAR vnewbaseb = (.vbaseb + (.vaddbk * 2))
+  SET VAR vnewbasebr = (.vbasebr + (.vaddbk * 2))
+  SET VAR vnewbasesr = (.vbasesr + (.vaddbk * 2))
+  SET VAR vnewbasear = (.vbasear + (.vaddbk * 2))
+  SET VAR vnewbasemr = (.vbasemr + (.vaddbk * 2))
+ENDIF
+SET VAR vnewbase = (.vnewbases + .vdest)
+SET VAR vanewbase = (.vnewbasea + .vdest)
+SET VAR vmnewbase = (.vnewbasem + .vdest)
+SET VAR vbnewbase = (.vnewbaseb + .vdest)
+SET VAR vb1newbse = (.vnewbasebr + .vdest)
+SET VAR v1newbse = (.vnewbasesr + .vdest)
+SET VAR va1newbse = (.vnewbasear + .vdest)
+SET VAR vm1newbse = (.vnewbasemr + .vdest)
+IF vgsa = '1' THEN
+  SET VAR vanewbase = (.vanewbase - (.vanewbase * .14))
+ENDIF
+LABEL leave
+RECALC VAR
+
+SET TRACE OFF
+
+RETURN
