@@ -1,0 +1,2296 @@
+*(AB6030 - PURCHASE ORDER BUILD)
+--rsm OCt 17 2012 Add new supplier RayKae SUPPID 03 SUPLOC RKC
+--rsm Sep 14 2012 comment out printing COnstruction Design Notes ConstSpec
+-- rsm sep 14 2012 and Packaging Instructions pkgconstruction  lines 2245-2248 and 2255-56
+---rsm July 27 2012 add supplier Yong Zheng Embroidery using table YZEPRC and code YZE
+--rsm July 13 2012 - new columns (Line 682) and variables (Line 686) for insert code for table photoembconst
+--rsm dec 20 2011 lines 625 & 1190  remove code to add 2 to itemqthi DO NOT Purchse 2 Extra anymore
+--rsm Sep 22 2011 add Pin Arts Industries to supplier drop down line 1788
+--rsm Sept 8 2011 - new code for Header Cards
+--rsm May 18 2011 ADD SUPPLIER YONG MING Cost Calculation Code
+--rsm Oct 22 2010 added line 1351 to get empkprc U03 data column value for backing
+--rsm June 21 2010 add Star back into code at 1637, 1665
+--rsm June 18 2010 add new supplier My Embroidery pricing logic  960,984,1001,1031,1035,1037,1041,1045,
+---1049,1053,1089,1240,1271,1293,1317,1332,1347,1362,1377,1392,1407,1422,1541,1570,1590,1611,1643,1725
+--rsm June 14 2010 change jeanway rush to 10% from 25% in line 1530 vjwrsh calculation
+--rsm June 14 2010 remove Jipen and Star from drop down for suppliers lines 1637 & 1665
+--rsm June 11 new backing pricing implemented at lines 701-718 and 1266-1350
+--rsm June 8 2010 added line at 1808 to display packaing instructions before choosing supplier
+--rsm May 12 2010 line 706-715 make changes to vbak for Velcro pricing from new vtechbak value
+-- rsm May 11 2010 changes to lines 512-522 to implement new backing lookup translation
+--rsm APR 30 FINAL TEST VERSION INTO PRODUCTION
+--rsm Apr 30 finalized addition of Beauty Emblem as supplier in all supplier calculations
+--rsm Apr 28 2010 adding new supplier Beauty Emblem
+--- dbh 09/11/07 modified for conversion to 7.6
+--rsm March2, 2010 - added code at line 1064-1069 to prevent
+--EXTRA COFFEE MUGS being added to POs
+Set Trace ON
+LABEL start
+SET WALKMENU ON
+CLEAR ALL VAR EXCEPT vloggedinuser
+SET VAR vimpo TEXT
+SET VAR vord TEXT = NULL
+SET VAR vchoice TEXT = NULL
+SET VAR lookonly TEXT = NULL
+SET VAR vdate DATE
+SET VAR vpono TEXT
+SET VAR vitempkg INTEGER = NULL
+SET VAR vfile TEXT
+SET VAR vexit TEXT = NULL
+SET VAR vorddone TEXT = NULL
+--rsm Apr 14 2010 add variable for order type to use in logic for type = P to remove adding 2 to purchases for prepro samples
+SET VAR vOrdType TEXT = NULL
+CLS
+SET VAR vmsg = 'Enter Order #  OR'
+SET VAR vmsg = (.vmsg + (CHAR(13)) + 'Enter S to choose from the last')
+SET VAR vmsg = (.vmsg + (CHAR(13)) + '14 days of Purchase Orders')
+DIALOG .vmsg vord=8 vkey 1 CAPTION 'Purchase Orders' +
+OPTION MESSAGE_FONT_NAME Verdana +
+|MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 8 +
+|MESSAGE_BOLD ON |THEMENAME R:Base Rocks!
+IF vkey = '[ESC]' THEN
+  GOTO leave
+ENDIF
+IF vord = 'S' THEN
+  SET VAR vpo TEXT = NULL
+  SELECT ordno INTO vpo INDICATOR vi0 FROM pomast WHERE podate > (#DATE - 100) AND LIMIT = 1
+  IF vpo IS NULL THEN
+    PAUSE 2 USING 'There are no  purchase orders' +
+    CAPTION 'Purchase Orders' ICON INFO BUTTON 'OK' +
+    OPTION MESSAGE_FONT_NAME Verdana +
+    |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 |MESSAGE_FONT_BOLD ON +
+    |THEMENAME R:BASE ROCKS!
+    GOTO start
+  ENDIF
+  SET VAR vchoice TEXT = NULL
+  CHOOSE vchoice FROM #VALUES FOR +
+  (LJS(pono,8) & (LJS(suppnm,4) & (CTXT(podate)))), pono FROM pomast +
+  ORDER BY podate DESC, pono WHERE podate > (#DATE - 14) +
+  TITLE 'Choose a Purchase Order' CAPTION 'Purchase Orders' +
+  LINES 20 OPTION TITLE_FONT_NAME Verdana |TITLE_FONT_SIZE 10 +
+  |TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME Verdana +
+  |LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+  IF vchoice IS NULL OR vchoice = '[Esc]' THEN
+    GOTO start
+  ENDIF
+  SET VAR vpono = .vchoice
+
+  GOTO editpo
+ENDIF
+IF vord IS NULL THEN
+  SET VAR vdsn TEXT = NULL
+  DIALOG 'Enter Design Number' vdsn=8 vkey 1 CAPTION 'Purchase Orders' +
+  OPTION MESSAGE_FONT_NAME Verdana +
+  |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 +
+  |MESSAGE_BOLD ON |THEMENAME R:Base Rocks!
+  IF vkey = '[ESC]' THEN
+    GOTO leave
+  ENDIF
+  IF vdsn IS NULL THEN
+    GOTO start
+  ENDIF
+  SET VAR vpo TEXT = NULL
+  SELECT ordno INTO vpo INDICATOR vi1 FROM poitem WHERE itemcd = .vdsn
+  IF vpo IS NULL THEN
+    SELECT desno INTO vpo INDICATOR vi1 FROM prodsched WHERE desno = .vdsn
+    IF vpo IS NULL THEN
+      PAUSE 2 USING 'Design not found in Purchase Orders' +
+      CAPTION 'Purchase Orders' ICON INFO BUTTON 'OK' OPTION MESSAGE_FONT_NAME Verdana +
+      |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 |MESSAGE_FONT_BOLD ON +
+      |THEMENAME R:BASE ROCKS!
+      GOTO start
+    ENDIF
+    SET VAR vchoice TEXT = NULL
+    CHOOSE vchoice FROM #VALUES FOR +
+    (LJS(desno,8) & (LJS(revision,2) & (LJS(dsndesc,30) & (LJS(locate,4) & imppo)))), +
+    imppo FROM prodsched WHERE desno = .vdsn AND imppo IS NOT NULL +
+    ORDER BY schedno DESC +
+    TITLE 'PO Old History' CAPTION 'Purchase Orders' +
+    LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+    |TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+    |LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+    IF vchoice = '[ESC]' THEN
+      GOTO start
+    ENDIF
+    GOTO start
+  ENDIF
+  SET VAR vchoice TEXT = NULL
+  CHOOSE vchoice FROM #VALUES FOR +
+  (LJS(pono,8) & (LJS(suppnm,4) & (CTXT(podate)))), pono +
+  FROM poab ORDER BY ordno DESC +
+  WHERE itemcd = .vdsn +
+  CAPTION 'New Purchase Orders' +
+  OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+  |TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+  |LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+  IF vchoice = '[ESC]' THEN
+    GOTO start
+  ENDIF
+  SET VAR vpono = .vchoice
+
+  GOTO editpo
+ENDIF
+SET VAR vstchk TEXT = NULL
+set var vcomb text
+set var vsubcomb text
+SET VAR vstdate DATE = NULL
+SET VAR vspdate DATE = NULL
+SET VAR vedate DATE = NULL
+SET VAR vdsgn TEXT = NULL
+SET VAR vqtyrule TEXT = NULL
+SET VAR vcoolbl TEXT = NULL
+SET VAR vacctno TEXT = NULL
+
+--rsm Apr 14 2010 add ordtype field to select statement loading variable vOrdType
+SELECT ordno,stdate,spdate,eventdte,itemcd,qtyrule,coolbl,acctno,ordtype INTO +
+vstchk INDICATOR vi1, vstdate INDICATOR vi2, vspdate INDICATOR vi3, +
+vedate INDICATOR vi4, vdsgn INDICATOR vi5, vqtyrule INDICATOR vi6, +
+vcoolbl INDICATOR vi7, vacctno INDICATOR vi8, vOrdType vi9  +
+FROM pordab WHERE (ordno = .vord AND ((accstat BETWEEN 'a' AND 'b') +
+OR (acctno = '001236') OR (ordtype = 'L' AND itemqty = 1))) AND LIMIT = 1
+IF vstchk IS NULL THEN
+  PAUSE 2 USING 'Invalid, Unconfirmed or Prev Processed Order' +
+  CAPTION 'Purchase Orders' ICON INFO BUTTON 'OK' +
+  OPTION MESSAGE_FONT_NAME Verdana +
+  |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 |MESSAGE_FONT_BOLD ON +
+  |THEMENAME R:BASE ROCKS!
+  GOTO start
+ENDIF
+SET VAR vpref NOTE
+SELECT custpref INTO vpref INDICATOR vi0 FROM customer WHERE acctno = .vacctno
+IF vpref IS NOT NULL THEN
+  EDIT USING absys_custpref WHERE acctno = .vacctno
+ENDIF
+LABEL newitem
+CLS
+If vsubcomb = 's' then
+   Goto Newsub
+Endif
+If vComb = 'm' then
+   goto Newcomb
+Endif
+SET VAR vmore TEXT = NULL
+--SET VAR vcomb TEXT = NULL
+SET VAR vstdate DATE = NULL
+SET VAR vspdate DATE = NULL
+SET VAR vedate DATE = NULL
+SELECT ordno, stdate, spdate, eventdte, ordtype INTO vmore INDICATOR vi0, vstdate INDICATOR vi1, +
+vspdate INDICATOR vi2, vedate INDICATOR vi3, vOrdtype vi4 +
+FROM pordab WHERE (ordno =.vord AND ((accstat BETWEEN 'A' AND 'B') +
+OR (acctno = '001236') OR (ordtype = 'L' AND itemqty = 1))) AND LIMIT = 1
+IF vmore IS NULL THEN
+  GOTO editpo
+ENDIF
+SET VAR vmnkadd TEXT = NULL
+SET VAR vitemno TEXT = NULL
+SET VAR vitemsub TEXT = NULL
+SET VAR vmast TEXT = NULL
+SET VAR vxpc1 INTEGER = NULL
+SET VAR vitemcd TEXT = NULL
+SET VAR vrev TEXT = NULL
+SET VAR vitempkg INTEGER = NULL
+SET VAR vdsndesc TEXT = NULL
+SET VAR vphoto TEXT = NULL
+SET VAR vpin TEXT = NULL
+Set Var vhdr text = null
+SET VAR vspcno TEXT = NULL
+SET VAR vinqno TEXT = NULL
+SET VAR vprc REAL = 0.0
+SET VAR vpcs INTEGER = 0
+SET VAR vpctg TEXT = NULL
+Set var vsel text = null
+SET VAR vimprush TEXT = NULL
+SET VAR vbutton INTEGER = 0
+EDIT USING absys_poitemlookup
+IF vbutton = 99 THEN
+  GOTO leave
+ENDIF
+--set trace on
+SET VAR vreqdt DATE = .vstdate
+IF vorddone = 'x' THEN
+  GOTO newitem
+ENDIF
+IF vpin = 'yes' THEN
+  SELECT inqno INTO vinqno INDICATOR vi1 FROM qpin WHERE inqno = .vspcno
+  IF vinqno IS NULL THEN
+    CLS
+    PAUSE 2 USING 'Pin Spec Does Not Exist' +
+    CAPTION 'Pin Spec Sheet' ICON INFO BUTTON 'OK' +
+    OPTION MESSAGE_FONT_NAME Verdana +
+    |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 |message_font_bold ON +
+    GOTO newitem
+  ENDIF
+  GOTO specpin
+ENDIF
+--rsm Sept 7 2011 - fix bug in select into code
+IF vhdr = 'yes' THEN
+  SELECT hdr_inqno,Desno INTO vinqno INDICATOR vi1, vItemcd INDICATOR vi2 +
+        FROM HeaderSpec WHERE hdr_inqno = .vspcno
+  IF vinqno IS NULL THEN
+    CLS
+    PAUSE 2 USING 'Header Spec Does Not Exist' +
+    CAPTION 'Header Spec Sheet' ICON INFO BUTTON 'OK' +
+    OPTION MESSAGE_FONT_NAME Verdana +
+    |MESSAGE_FONT_COLOR 13209 | 10 |message_font_bold ON +
+    GOTO newitem
+  ENDIF
+  --rsm Sep7 2011 fix form name to be correct
+  --rsm Sep 6 2012 - add variable to hold order line item qty to use for po line item
+  set var vhdrqty1 INTEGER = .vxpc1
+  Edit using ABSYS_Hdspec where Hdr_inqno = .vinqno
+  --rsm Sept 7 2011 add imp color = 0 to code to prevent error
+ -- SET VAR vImpcol INT = 0
+ --rsm Sept 7 2011  bypass all calculations
+ --rsm Sep 6 2012 - use held order line utem qty variable to replace spec qty for insert into po line item
+  SET VAR itemqty INTEGER = .vhdrqty1
+  SET VAR itemqtlo TEXT = .vhdrqty1
+  SET VAR itemqthi Text = .vhdrqty1
+
+  goto loadimp
+ENDIF
+SET VAR vimport TEXT = NULL
+If vcomb = 'x' then
+   Goto Skipcomb
+Endif
+Set var vComb = ItemComp in itemtbl where itemcd = .vitemcd and itemcomp = 'm'
+Set var vOkComb = Itemcd in Composites where itemcd = .vitemcd
+If vcomb = 'm' and vOkcomb is null then
+    PAUSE 2 USING 'Composite Table Does Not Exist' +
+    CAPTION 'Composite Error' ICON INFO BUTTON 'OK' +
+    OPTION MESSAGE_FONT_NAME Verdana +
+    |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 |message_font_bold ON +
+    Set var vComb = 'x'
+    GOTO SkipComb
+Endif
+If vcomb = 'm' then
+   Set var vmast text = .vitemcd
+   Label Newcomb
+   SET VAR vspcno TEXT = NULL
+   SET VAR vpctg TEXT = NULL
+   SET VAR vphoto TEXT = NULL
+   SET VAR vpin TEXT = NULL
+   Set Var vhdr text = null
+   SET VAR vprc REAL = 0.0
+   SET VAR vpcs INTEGER = 0
+   SET VAR vimprush TEXT = NULL
+   EDIT USING absys_complookup
+   Set var vitemno = null
+   If vComb = 'x' then
+      Set var vcomb = null
+      Goto newitem
+   Endif
+   Set var vSubComb = Compmast in Composites where itemsub = .vitemsub and compmast = 'S'
+   If Vsubcomb = 'S' then
+      Set var vmast text = .vitemcd
+      Label Newsub
+      SET VAR vspcno TEXT = NULL
+      SET VAR vpctg TEXT = NULL
+      SET VAR vphoto TEXT = NULL
+      SET VAR vpin TEXT = NULL
+      Set Var vhdr text = null
+      SET VAR vprc REAL = 0.0
+      SET VAR vpcs INTEGER = 0
+      SET VAR vimprush TEXT = NULL
+      EDIT USING absys_complookup
+      Set var vitemno = null
+      If vsubComb = 'x' then
+         Set var vsubcomb = null
+         Goto newcomb
+      Endif
+   Endif
+   IF vpin = 'yes' THEN
+      SELECT inqno INTO vinqno INDICATOR vi1 FROM qpin WHERE inqno = .vspcno
+      IF vinqno IS NULL THEN
+       CLS
+       PAUSE 2 USING 'Pin Spec Does Not Exist' +
+       CAPTION 'Pin Spec Sheet' ICON INFO BUTTON 'OK' +
+       OPTION MESSAGE_FONT_NAME Verdana +
+       |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 |message_font_bold ON +
+        GOTO newitem
+      ENDIF
+      GOTO specpin
+   ENDIF
+   IF vhdr = 'yes' THEN
+      SELECT hdr_inqno INTO vinqno INDICATOR vi1, Desno INTO vItemcd INDICATOR vi2 +
+        FROM HeaderSpec WHERE hdr_inqno = .vspcno
+      IF vinqno IS NULL THEN
+         CLS
+         PAUSE 2 USING 'Header Spec Does Not Exist' +
+         CAPTION 'Header Spec Sheet' ICON INFO BUTTON 'OK' +
+         OPTION MESSAGE_FONT_NAME Verdana +
+        |MESSAGE_FONT_COLOR 13209 | 10 |message_font_bold ON +
+        GOTO newitem
+      ENDIF
+      --rsm sep 6 2012 add new var and code to bypass quote qty and use order item qty for poitem insert
+      set var vhdrqty1 INTEGER = .vxpc1
+      Edit using Hdr_spec where Hdr_inqno = .vinqno
+      SET VAR itemqty INTEGER = .vhdrqty1
+       SET VAR itemqtlo TEXT = .vhdrqty1
+      SET VAR itemqthi Text = .vhdrqty1
+      goto Loadimp
+   ENDIF
+--   If vcomptype = 'asm' then
+--      edit using ABSys_assembly where itemcd = .vitemcd
+--      GOTO loadimp
+--  Endif
+Endif
+Label SkipComb
+SELECT suppnm INTO vimport INDICATOR vi1 FROM poab WHERE ordno = .vord AND itemcd = .vitemcd
+SET VAR vtpcs INTEGER = 0
+SELECT (SUM(itemqty)) INTO vtpcs INDICATOR vi0 FROM poitem WHERE ordno = .vord AND itemcd = .vitemcd
+IF vtpcs > 0 THEN
+  CHOOSE vprevpo FROM #VALUES FOR +
+  (LJS(itemcd,8) & (CTXT(itemowe) & (LJS(itemdesc,30) & suppnm))), pono +
+  FROM poab ORDER BY suppnm +
+  WHERE ordno = .vord TITLE 'OTHER PURCHASES' CAPTION 'Split Purchases' +
+  LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+  |TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+  |LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+ENDIF
+LABEL setpcs
+SET VAR itemqty INTEGER = .vxpc1
+CLEAR VAR vedate, vspdate, vstdate, vstchk, vpo
+SET VAR vimpcol INTEGER = 0
+SET VAR vimplaser TEXT = NULL
+SET VAR vexit TEXT = NULL
+SET VAR vcolno INTEGER = 1
+SET VAR vimpmtpct REAL = NULL
+SET VAR vimpfelt TEXT = NULL
+LABEL chknew
+IF vphoto = 'yes' THEN
+  GOTO specfind
+ENDIF
+SET VAR vsched TEXT = NULL
+SELECT schedtxt INTO vsched INDICATOR vi1 FROM prodsched WHERE desno = .vitemcd AND schedtype = 'c'
+IF vsched IS NOT NULL THEN
+  GOTO editcon
+ENDIF
+SET VAR vconuse INTEGER = NULL
+SET VAR vtype TEXT = NULL
+SELECT schedno, schedtype INTO vconuse INDICATOR vi1, vtype INDICATOR vi2 +
+FROM prodsched WHERE desno = .vitemcd
+IF vconuse IS NOT NULL THEN
+  GOTO selcon
+ENDIF
+SET VAR vused1 TEXT = NULL
+SET VAR vused2 TEXT = NULL
+SET VAR vused3 TEXT = NULL
+SET VAR vused4 TEXT = NULL
+SET VAR vused5 TEXT = NULL
+SET VAR vused6 TEXT = NULL
+SET VAR vused7 TEXT = NULL
+SET VAR vused8 TEXT = NULL
+SET VAR vused9 TEXT = NULL
+SET VAR vused10 TEXT = NULL
+SET VAR vused11 TEXT = NULL
+SET VAR vused12 TEXT = NULL
+SET VAR vused13 TEXT = NULL
+SET VAR vused14 TEXT = NULL
+SET VAR vused15 TEXT = NULL
+SET VAR vcoll1  TEXT = NULL
+SET VAR vcoll2  TEXT = NULL
+SET VAR vcoll3  TEXT = NULL
+SET VAR vcoll4  TEXT = NULL
+SET VAR vcoll5  TEXT = NULL
+SET VAR vcoll6  TEXT = NULL
+SET VAR vcoll7  TEXT = NULL
+SET VAR vcoll8  TEXT = NULL
+SET VAR vcoll9  TEXT = NULL
+SET VAR vcoll10 TEXT = NULL
+SET VAR vcoll11 TEXT = NULL
+SET VAR vcoll12 TEXT = NULL
+SET VAR vcoll13 TEXT = NULL
+SET VAR vcoll14 TEXT = NULL
+SET VAR vcoll15 TEXT = NULL
+SET VAR vcoll16 TEXT = NULL
+SET VAR vcoll17 TEXT = NULL
+SET VAR vcoll18 TEXT = NULL
+SET VAR vcoll19 TEXT = NULL
+SET VAR vcoll20 TEXT = NULL
+SET VAR vstitches INTEGER
+SET VAR vqnumb TEXT
+SET VAR vqtype TEXT
+SET VAR vrefdsn TEXT
+SET VAR vartno TEXT
+SET VAR vsztype TEXT
+SET VAR vszwid DOUBLE
+SET VAR vszlth DOUBLE
+SET VAR vshape TEXT
+SET VAR vvizw DOUBLE
+SET VAR vvizl DOUBLE
+SET VAR vvizshp TEXT
+SET VAR vbutnhole TEXT
+SET VAR vmaterial TEXT
+SET VAR vbkgcol TEXT
+SET VAR vovlktype TEXT
+SET VAR vovlkcolr TEXT
+SET VAR vbkgfin TEXT
+SET VAR vcolsel TEXT
+SET VAR vpackging TEXT
+SET VAR vqtytype TEXT
+SET VAR veststchs TEXT
+SET VAR vhowqt TEXT
+SET VAR vpctemb TEXT
+SET VAR vseqno INTEGER
+SET VAR vcolno TEXT
+SET VAR vcolsrc TEXT
+SET VAR vcolnm TEXT
+SET VAR velement TEXT
+set var vcps text
+SET VAR vdesno = .vitemcd
+GOTO specfind
+LABEL specno
+DIALOG 'Enter Spec No if available' vspcno=6 vkey 1 OPTION MESSAGE_FONT_NAME Verdana +
+|MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 +
+|MESSAGE_BOLD ON |THEMENAME R:Base Rocks!
+IF vkey = '[ESC]' THEN
+  GOTO photochk
+ENDIF
+IF vspcno IS NULL THEN
+  GOTO photochk
+ENDIF
+LABEL specfind
+IF vspcno IS NULL THEN
+  GOTO photochk
+ENDIF
+SET VAR vspchk TEXT
+SELECT inqno INTO vspchk INDICATOR vi0 FROM embqtdtl WHERE inqno = .vspcno
+IF vspchk IS NULL THEN
+  PAUSE 2 USING 'Invalid Spec Number' +
+  CAPTION 'Purchase Orders' ICON warning BUTTON 'OK' OPTION MESSAGE_FONT_NAME Verdana +
+  |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 |MESSAGE_FONT_BOLD ON +
+  |THEMENAME R:BASE ROCKS!
+  SET VAR vspcno = NULL
+  GOTO specno
+ENDIF
+SET VAR vdesno TEXT
+IF vdesno IS NULL THEN
+  SET VAR vdesno = .vitemcd
+ENDIF
+SET VAR vdesno TEXT
+IF vspchk IS NOT NULL THEN
+  SET RULES OFF
+  UPDATE qemb SET pattern = NULL WHERE pattern = .vdesno
+  UPDATE qemb SET pattern = .vdesno WHERE inqno = .vspcno
+  SET RULES ON
+ENDIF
+SET VAR vspecinst NOTE
+DROP CURSOR cur1
+SELECT specnote INTO vspecinst INDICATOR vi1 FROM qemb WHERE inqno = .vspcno
+DECLARE cur1 CURSOR FOR SELECT qnumb,qtype,refpat,embtype,sztype,wdim,ldim,shape, +
+vizw, vizl, vizshp, butnhole, emback, bkgcol, finemb, +
+bordcol,bkgfin,sticker1,sticker2,colsel,packing,artsend,techbak,qtytype,actstch,howqt1,impemb,seqno,colno,colsrc,colnm,cps +
+FROM embqtdtl WHERE inqno = .vspcno ORDER BY seqno
+OPEN cur1
+LABEL nextcol
+FETCH cur1 INTO vqnumb, vqtype, vrefdsn, vembtype, vsztype, vszwid, vszlth, vshape, vvizw, vvizl, +
+vvizshp, vbutnhole, vmaterial, vbkgcol, vovlktype, vovlkcolr, vbkgfin,vsticker1,vsticker2, vcolsel, +
+vpackging,vartno, vtechbak, vqtytype, veststchs, vhowqt, vpctemb, vseqno, vcolno, vcolsrc, vcolnm, vcps
+IF SQLCODE <> 100 THEN
+  GOTO colors
+ENDIF
+SET VAR vmaterial = (.vmaterial & .vbkgcol)
+GOTO spccontains
+LABEL colors
+IF vembtype LIKE 'Photo%' OR vembtype LIKE 'Cup%' OR vembtype LIKE 'Mouse%' THEN
+  GOTO photoconst
+ENDIF
+SET VAR vmad TEXT = NULL
+SET VAR vusedall TEXT = NULL
+
+SET VAR vcollall TEXT = .vcolnm
+--  SELECT maderia INTO vmad INDICATOR vi1 FROM spccol WHERE fufu = .vcolsrc
+SET VAR vusedall = .vcolnm
+SET VAR vcollvar = ('vcoll' + (CTXT(.vseqno)))
+SET VAR vusedvar = ('vused' + (CTXT(.vseqno)))
+
+SET VAR vq = (CVAL('QUOTES'))
+SET VAR vsetcvar = ('SET VAR' & .vcollvar & '=' & .vq + .vcollall + .vq)
+&vsetcvar
+SET VAR vsetuvar = ('SET VAR' & .vusedvar & '=' & .vq + .vusedall + .vq)
+&vsetuvar
+GOTO nextcol
+LABEL spccontains
+IF vqnumb LIKE 'Q%' THEN
+  IF vhowqt IS NULL THEN
+    SET VAR vhowqt = 'QQQ'
+  ENDIF
+ENDIF
+LABEL photochk
+IF vphoto = 'No' THEN
+  GOTO nophoto
+ENDIF
+GOTO photoconst
+LABEL nophoto
+DROP CURSOR cur1
+SET VAR vordno TEXT = .vord
+SET VAR vitemnox = .vchoice
+SET VAR vschedno = schedctr IN inqtbl
+SET VAR vschedno = (.vschedno + 1)
+SET VAR vsched = .vschedno
+UPDATE inqtbl SET schedctr = .vschedno
+SET VAR vschedtype = 'M'
+SET VAR vtickdt DATE = .#DATE
+SET VAR vstate TEXT
+SET VAR vitemqty INTEGER
+SET VAR vitemnox TEXT
+SET VAR vstdate DATE
+SET VAR vrevision TEXT
+SET VAR vhowqt TEXT
+SET VAR vbkgfin TEXT
+SET VAR vprethk TEXT = NULL
+SET VAR vprebk1 TEXT = NULL
+SET VAR vprebk2 TEXT = NULL
+SET VAR vpostthk TEXT = NULL
+SET VAR vpostbk1x TEXT = NULL
+SET VAR vtails TEXT = NULL
+--rsm May 11 2010 modify and add to code block to retrieve the translated backing value
+--the FINBACK table was modified to include 2 new columns, BKCD and BKCONST
+--BKCD is the unique lookup key for each row and BKCONST is the construction sheet
+--translated value for the spec sheet value used byu the salesforce
+SELECT FINBACK.BKCONST into vpostbk1x INDIC vi1 FROM FINBACK WHERE FINBACK.FINBK = .vbkgfin
+if vpostbk1x IS NULL then
+set var vpostbk1x = .vbkgfin
+ENDIF
+--rsm May 11 201 commented out old code
+{
+IF vbkgfin = 'Industrial Laundered Iron-on' THEN
+  SET VAR vpostbk1x = '5 mil PU (API)'
+  SET VAR vtails = 'HOT CUT'
+ENDIF   }
+SET RULES OFF
+IF vbutnhole IS NULL THEN
+  SET VAR vbutnhole = 'NO'
+ENDIF
+SET VAR vpartship TEXT = 'NO'
+SET VAR vkeyring TEXT = 'NO'
+SET VAR vmetthrd TEXT = 'NO'
+SET VAR vluggtag TEXT = 'NO'
+SET VAR vdesno TEXT
+Set var vtechbak text
+Set var vsticker1 text
+Set var vsticker2 text
+SET VAR vspecinst NOTE
+INSERT INTO prodsched (schedno,revision,tickdt,schedtype, +
+ordno,itemnox,state,artno,refdsn,desno, +
+dsndesc,sztype,szwid,szlth,stitches,eststchs,material, +
+pctemb,stdate,qtype,colsel,howqt,itemqty,qtytype, +
+qtyrule,vizw,vizl,vizshp,shape,coll1,coll2,coll3,coll4,coll5,coll6,coll7, +
+coll8,coll9,coll10,coll11,coll12,coll13,coll14,coll15,coll16,coll17, +
+coll18,coll19,coll20, +
+used1,used2,used3,used4,used5,used6,used7,used8,used9, +
+used10,used11,used12,used13,used14,used15,prethk,prebk1,prebk2,postthk, +
+postbk1x,sticker1,sticker2,techbak,ovlkcolr,ovlktype,tails,butnhole,keyring,metthrd,luggtag,packging, +
+cps,specinst) +
+VALUES .vschedno,.vrevision,.vtickdt,.vschedtype, +
+.vordno,.vitemnox,.vstate,.vArtNo, +
+.vrefdsn,.vdesno,.vdsndesc,.vsztype,.vszwid,.vszlth,.vstitches,.veststchs, +
+.vmaterial,.vpctemb,.vstdate,.vqtype, +
+.vcolsel,.vhowqt,.vitemqty,.vqtytype,.vqtyrule,.vvizw,.vvizl, +
+.vvizshp,.vshape,.vcoll1,.vcoll2,.vcoll3,.vcoll4,.vcoll5,.vcoll6,.vcoll7, +
+.vcoll8,.vcoll9,.vcoll10,.vcoll11,.vcoll12,.vcoll13,.vcoll14,.vcoll15, +
+.vcoll16,.vcoll17,.vcoll18,.vcoll19,.vcoll20, +
+.vused1,.vused2,.vused3,.vused4, +
+.vused5,.vused6,.vused7,.vused8,.vused9,.vused10,.vused11,.vused12, +
+.vused13,.vused14,.vused15,.vprethk,.vprebk1,.vprebk2,.vpostthk,.vpostbk1x,.vsticker1,.vsticker2,.vtechbak, +
+.vovlkcolr,.vovlktype,.vtails,.vbutnhole,.vkeyring,.vmetthrd,.vluggtag, +
+.vpackging,.vcps,.vspecinst
+SET RULES ON
+SET VAR vdesno TEXT
+IF vspcno IS NOT NULL THEN
+  SET RULES OFF
+  UPDATE qemb SET pattern = NULL WHERE pattern = .vdesno
+  UPDATE qemb SET pattern = .vdesno WHERE inqno = .vspcno
+  SET RULES ON
+ENDIF
+GOTO editcon
+LABEL specpin
+SET VAR vchk = itemcd IN pinconst WHERE itemcd = .vitemcd
+IF vchk IS NULL THEN
+  CLS
+  SET VAR vcaption TEXT = 'Design Not Found'
+  DIALOG 'Create New Construction Sheet?' vyesno vendkey yes +
+  CAPTION .vcaption ICON apps +
+  OPTION THEMENAME R:BASE Rocks!
+  IF vyesno = 'no' THEN
+    GOTO nextitem
+  ENDIF
+  GOTO newpinconst
+ENDIF
+
+SELECT frtmethod,supp1,pinqty1,pincst1,pinatt1,pinqty2,pincst2,pinatt2,pinqty3, +
+pincst3,pinatt3,pinqty4,pincst4,pinatt4,pinqty5,pincst5,pinatt5 +
+INTO vfrtmethod INDICATOR vi33,vsupp1 INDICATOR vi17,vpqty1 INDICATOR vi18,vpcst1 INDICATOR vi19,vacst1 INDICATOR vi20, +
+vpqty2 INDICATOR vi31,vpcst2 INDICATOR vi21,vacst2 INDICATOR vi22, +
+vpqty3 INDICATOR vi32,vpcst3 INDICATOR vi23,vacst3 INDICATOR vi24, +
+vpqty4 INDICATOR vi30,vpcst4 INDICATOR vi25,vacst4 INDICATOR vi26, +
+vpqty5 INDICATOR vi29,vpcst5 INDICATOR vi27,vacst5 INDICATOR vi28 FROM qpin WHERE inqno = .vspcno
+SET VAR vpinl NUM (6,4), vpinw NUM (6,4)
+SET VAR vpcost1 = (.vpcst1 + .vacst1)
+SET VAR vpcost2 = (.vpcst2 + .vacst2)
+SET VAR vpcost3 = (.vpcst3 + .vacst3)
+SET VAR vpcost4 = (.vpcst4 + .vacst4)
+SET VAR vpcost5 = (.vpcst5 + .vacst5)
+UPDATE pinconst SET shipmethod = .vfrtmethod WHERE itemcd = .vitemcd
+LABEL editpinconst
+EDIT USING absys_pinconst WHERE itemcd = .vitemcd
+SET VAR itemqty = .vxpc1
+SET VAR itemqtlo TEXT = .vxpc1
+--rsm Dec 20 2011 remove code to add 2 to itemqthi
+SET VAR itemqthi Int = .vxpc1
+SET VAR itemqthi Text
+GOTO loadimp
+LABEL newpinconst
+SELECT frtmethod,pinw,pinl,pinlet,attmnt,pltcol,shape,supp1,col1,col2,col3,col4, +
+col5,col6,col7,col8,col9,pintype,diechg,pinqty1,pincst1,pinatt1,pinqty2,pincst2,pinatt2, +
+pinqty3,pincst3,pinatt3,pinqty4,pincst4,pinatt4,pinqty5,pincst5,pinatt5,cps +
+INTO vfrtmethod INDICATOR vi36,vpinw INDICATOR vi1, vpinl INDICATOR vi2, vpinlet INDICATOR vi3, +
+vattmnt INDICATOR vi4,vpltcol INDICATOR vi5, vshape INDICATOR vi37, vsupp1 INDICATOR vi6, +
+vcol1 INDICATOR vi7,vcol2 INDICATOR vi8,vcol3 INDICATOR vi9,vcol4 INDICATOR vi10, +
+vcol5 INDICATOR vi11,vcol6 INDICATOR vi12,vcol7 INDICATOR vi14,vcol8 INDICATOR vi15, +
+vcol9 INDICATOR vi16,vpintype INDICATOR vi35,vdiechg INDICATOR vi33, +
+vpqty1 INDICATOR vi34,vpcst1 INDICATOR vi19,vacst1 INDICATOR vi20, +
+vpqty2 INDICATOR vi31,vpcst2 INDICATOR vi21,vacst2 INDICATOR vi22, +
+vpqty3 INDICATOR vi32,vpcst3 INDICATOR vi23,vacst3 INDICATOR vi24, +
+vpqty4 INDICATOR vi30,vpcst4 INDICATOR vi25,vacst4 INDICATOR vi26, +
+vpqty5 INDICATOR vi29,vpcst5 INDICATOR vi27,vacst5 INDICATOR vi28,vcps INDICATOR vi38 +
+FROM qpin WHERE inqno = .vspcno
+SET VAR vpinl NUM (6,4), vpinw NUM (6,4)
+SET VAR vpcost1 = (.vpcst1 + .vacst1)
+SET VAR vpcost2 = (.vpcst2 + .vacst2)
+SET VAR vpcost3 = (.vpcst3 + .vacst3)
+SET VAR vpcost4 = (.vpcst4 + .vacst4)
+SET VAR vpcost5 = (.vpcst5 + .vacst5)
+SET VAR vpinlet = itemdesc IN itemtbl WHERE itemcd = .vitemcd
+INSERT INTO pinconst (itemcd,itemdesc,szwid,szlth,shape,pltcol,pintype,attmnt,diechg,shipmethod,coll1,coll2, +
+coll3,coll4,coll5,coll6,coll7,coll8,coll9,cps) +
+VALUES (.vitemcd,.vpinlet,.vpinw,.vpinl,.vshape,.vpltcol,.vpintype,.vattmnt,.vdiechg,.vfrtmethod,.vcol1, +
+.vcol2,.vcol3,.vcol4,.vcol5,.vcol6,.vcol7,.vcol8,.vcol9,.vcps)
+GOTO editpinconst
+LABEL photoconst
+SET VAR vchk = itemcd IN photoembconst WHERE itemcd = .vitemcd
+IF vchk IS NULL THEN
+  CLS
+  SET VAR vcaption TEXT = 'Design Not Found'
+  DIALOG 'Create New Construction Sheet?' vyesno vendkey yes +
+  CAPTION .vcaption ICON apps +
+  OPTION THEMENAME R:BASE Rocks!
+  IF vyesno = 'no' THEN
+    GOTO start
+  ENDIF
+  GOTO newconst
+ENDIF
+GOTO editconst
+LABEL newconst
+SET VAR vitemdesc TEXT = NULL
+SET VAR vfinishnotes NOTE = .vspecinst
+SELECT itemdesc INTO vitemdesc INDICATOR vi0 FROM itemtbl WHERE itemcd = .vitemcd
+--rsm July 12 2012 - add 3 new columns and variables to insert statement for stickers and butonloop for photoemblem
+--new columns in table photoembconst are Psticker1, Psticker2, Pbutnhole
+-- existing variables used are vsticker1, vsticker2, vbutnhole
+INSERT INTO photoembconst (itemcd,itemdesc,actualw,actualh,filetype,resolution,dithering,density, +
+inklimit,inkmethod,printdir,passno,dotsize,sharpen,jpgcolprof1,jpgcolprof2,espcolprof1, +
+espcolprof2,espdensity,finback,cut,finishnotes,Psticker1,Psticker2,Pbutnhole) +
+VALUES (.vitemcd,.vitemdesc,.vszwid,.vszlth,'jpg','360 x 360','Stochastic (v10)', +
+'Standard Hi Res.pnd','400','Preserve Grey','Bi-Directional','2 Pass','Variable 1','Yes', +
+'AdobeRGB.icm','Relative Colormetric','Offset Gloss','Relative Colormetric', +
+'ESP_76_96_DSP120_SUBLIJET_POLY_360x720',.vmaterial,.vovlktype,.vfinishnotes,.vsticker1,.vsticker2,.vbutnhole)
+LABEL editconst
+--rsm july 12 2012 - form absys_photoconst modified to add 3 new fields
+EDIT USING absys_photoconst WHERE itemcd = .vitemcd
+SET VAR vphoto = 'yes'
+SET VAR itemqtlo TEXT = .vxpc1
+SET VAR itemqthi TEXT = .vxpc1
+GOTO loadimp
+LABEL selcon
+CHOOSE vsched FROM #VALUES FOR +
+(schedtype & (LJS(schedtxt,6) & (LJS(desno,8) & (LJS(revision,2) & dsndesc)))), +
+schedtxt FROM prodsched WHERE desno = .vitemcd +
+ORDER BY schedno DESC +
+TITLE 'Choose Sched for Construction Record' CAPTION 'Purchase Orders' +
+LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+|TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+|LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+IF vsched = '[Esc]' THEN
+  SET VAR vexit = 'EXIT'
+  GOTO endconstsel
+ENDIF
+LABEL editcon
+SET RULES OFF
+UPDATE prodsched SET tickdt = .#DATE +
+WHERE schedtxt = .vsched AND schedtype = 'C'
+UPDATE prodsched SET schedtype = 'C', mach = NULL, tickdt = .#DATE +
+WHERE schedtxt = .vsched AND schedtype <> 'C'
+SET RULES ON
+EDIT USING absys_embconst WHERE schedtxt = .vsched
+IF vimplaser LIKE 'hot needle%' OR vimplaser LIKE 'laser%' THEN
+  SET VAR vimplaser = 'Y'
+ELSE
+  SET VAR vimplaser = NULL
+ENDIF
+IF vimpfelt = 'FELT' OR vimpfelt = 'SUEDENE' THEN
+  SET VAR vimpfelt = 'Y'
+ELSE
+  SET VAR vimpfelt = NULL
+ENDIF
+--rsm June11 2010 NEW BACKING PRICING SET VAR CODE
+--used in lines 1266-1350 to set prices from table values
+IF vbak LIKE 'P%' THEN
+  SET VAR vbak = 'PS'
+ENDIF
+IF vbak LIKE '5 mil HSL%' THEN
+  SET VAR vbak = 'A02'
+ENDIF
+IF vbak LIKE '5 mil PU%' THEN
+  SET VAR vbak = 'U03'
+ENDIF
+IF vbak LIKE '5-7 mil EVA%'  THEN
+  SET VAR vbak = 'EVA'
+ENDIF
+IF vbak LIKE '7 mil Bemis%'  THEN
+  SET VAR vbak = 'BEM'
+ENDIF
+IF vbak LIKE 'BSA%'  THEN
+  SET VAR vbak = 'BSA'
+ENDIF
+-- rsm June 11 end new backing pricing set var code
+-- rsm commented out many lines of old bacing variable code here
+--rsm june 11 2010 resume legacy code
+SET VAR vimpcol INTEGER = 0, vcolno INTEGER = 1
+LABEL coladd
+SET VAR vcolno TEXT , vcolchk TEXT
+SET VAR vcolnm = ('COLL' + .vcolno)
+SET VAR vcolchk = &vcolnm IN prodsched WHERE schedtxt = .vsched
+IF vcolchk IS NOT NULL THEN
+  SET VAR vimpcol = (.vimpcol + 1)
+  SET VAR vcolno INTEGER
+  SET VAR vcolno = (.vcolno + 1)
+  IF vcolno < 21 THEN
+    GOTO coladd
+  ENDIF
+ENDIF
+LABEL endconstsel
+IF vexit = 'EXIT' THEN
+  CLEAR ALL VAR EXCEPT vloggedinuser
+  GOTO start
+ENDIF
+IF vpcs > 0 THEN
+  SET VAR vxpc1 = .vpcs
+ENDIF
+CLEAR VAR vcolno, vcolnm
+SET VAR vdimtp TEXT
+SET VAR vcat DOUBLE
+IF vpctg IS NOT NULL THEN
+  SET VAR vpctg REAL = ((.vpctg * .01) + 1)
+ELSE
+  SET VAR vpctg REAL = 1.0
+ENDIF
+SET VAR vcat = ((.vwidim + .vlidim) / 2)
+IF vdimtp = 'MM' THEN
+  GOTO mmcalc
+ENDIF
+IF vcat BETWEEN 0.0 AND 1.125 THEN
+  SET VAR vcat = 1
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 1.126 AND 1.625 THEN
+  SET VAR vcat = 1.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 1.626 AND 2.125 THEN
+  SET VAR vcat = 2
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 2.126 AND 2.625 THEN
+  SET VAR vcat = 2.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 2.626 AND 3.125 THEN
+  SET VAR vcat = 3
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 3.126 AND 3.625 THEN
+  SET VAR vcat = 3.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 3.626 AND 4.125 THEN
+  SET VAR vcat = 4
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 4.125 AND 4.625 THEN
+  SET VAR vcat = 4.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 4.626 AND 5.125 THEN
+  SET VAR vcat = 5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 5.126 AND 5.625 THEN
+  SET VAR vcat = 5.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 5.626 AND 6.125 THEN
+  SET VAR vcat = 6
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 6.126 AND 6.625 THEN
+  SET VAR vcat = 6.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 6.626 AND 7.125 THEN
+  SET VAR vcat = 7
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 7.126 AND 7.625 THEN
+  SET VAR vcat = 7.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 7.626 AND 8.125 THEN
+  SET VAR vcat = 8
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 8.126 AND 8.625 THEN
+  SET VAR vcat = 8.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 8.626 AND 9.125 THEN
+  SET VAR vcat = 9
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 9.126 AND 9.625 THEN
+  SET VAR vcat = 9.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 9.626 AND 10.125 THEN
+  SET VAR vcat = 10
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 10.126 AND 10.625 THEN
+  SET VAR vcat = 10.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 10.626 AND 11.125 THEN
+  SET VAR vcat = 11
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 11.126 AND 11.625 THEN
+  SET V vcat = 11.5
+  GOTO begcalc
+ENDIF
+IF vcat BETWEEN 11.626 AND 12.125 THEN
+  SET VAR vcat = 12
+  GOTO begcalc
+ENDIF
+SET VAR vcat = 12
+GOTO begcalc
+LABEL mmcalc
+IF vcat < 26 THEN
+  SET VAR vcat = 1
+  GOTO begcalc
+ENDIF
+IF vcat < 39 THEN
+  SET VAR vcat = 1.5
+  GOTO begcalc
+ENDIF
+IF vcat < 52 THEN
+  SET VAR vcat = 2
+  GOTO begcalc
+ENDIF
+IF vcat < 64 THEN
+  SET VAR vcat = 2.5
+  GOTO begcalc
+ENDIF
+IF vcat < 77 THEN
+  SET VAR vcat = 3
+  GOTO begcalc
+ENDIF
+IF vcat < 90 THEN
+  SET VAR vcat = 3.5
+  GOTO begcalc
+ENDIF
+IF vcat < 103 THEN
+  SET VAR vcat = 4
+  GOTO begcalc
+ENDIF
+IF vcat < 114 THEN
+  SET VAR vcat = 4.5
+  GOTO begcalc
+ENDIF
+IF vcat < 128 THEN
+  SET VAR vcat = 5
+  GOTO begcalc
+ENDIF
+IF vcat < 141 THEN
+  SET VAR vcat = 5.5
+  GOTO begcalc
+ENDIF
+IF vcat < 153 THEN
+  SET VAR vcat = 6
+  GOTO begcalc
+ENDIF
+IF vcat < 166 THEN
+  SET VAR vcat = 6.5
+  GOTO begcalc
+ENDIF
+IF vcat < 179 THEN
+  SET VAR vcat = 7
+  GOTO begcalc
+ENDIF
+IF vcat < 192 THEN
+  SET VAR vcat = 7.5
+  GOTO begcalc
+ENDIF
+IF vcat < 204 THEN
+  SET VAR vcat = 8
+  GOTO begcalc
+ENDIF
+IF vcat < 217 THEN
+  SET VAR vcat = 8.5
+  GOTO begcalc
+ENDIF
+IF vcat < 230 THEN
+  SET VAR vcat = 9
+  GOTO begcalc
+ENDIF
+IF vcat < 242 THEN
+  SET VAR vcat = 9.5
+  GOTO begcalc
+ENDIF
+IF vcat < 255 THEN
+  SET VAR vcat = 10
+  GOTO begcalc
+ENDIF
+IF vcat < 268 THEN
+  SET VAR vcat = 10.5
+  GOTO begcalc
+ENDIF
+IF vcat < 280 THEN
+  SET VAR vcat = 11
+  GOTO begcalc
+ENDIF
+IF vcat < 293 THEN
+  SET VAR vcat = 11.5
+  GOTO begcalc
+ENDIF
+IF vcat < 306 THEN
+  SET VAR vcat = 12
+  GOTO begcalc
+ENDIF
+SET VAR vcat = 12
+LABEL begcalc
+--rsm Apr 27 2010 variable block vbtnXXX (button hole?)
+SET VAR vbtnnpe REAL = NULL
+SET VAR vbtnyng REAL = NULL
+SET VAR vbtnemp REAL = NULL
+SET VAR vbtnjwy REAL = NULL
+SET VAR vbtnjpn REAL = NULL
+SET VAR vbtnbemb REAL = NULL
+SET VAR vbtnjng REAL = NULL
+SET VAR vbtnnpek REAL = NULL
+SET VAR vbtnempk REAL = NULL
+--rsm Apr 27 2010 add VAR for Beauty Emblem using 'beau'
+SET VAR vbtnbeau REAL = NULL
+--rsm June 18 add var for My Embroidery using 'myemb'
+SET VAR vbtnmyemb REAL = NULL
+--rsm May 16 2011 add var for YongMing using 'yongemb'
+SET VAR vbtnYong REAL = NULL
+--rsm July 27 2012 add var for button hole for Yong Zheng using 'vbtnYze'
+SET VAR vbtnYze REAL = NULL
+--rsm Apr 27 2010 variable block   misc uses?
+SET VAR vmtl TEXT
+SET VAR vnpe1 REAL = NULL
+SET VAR vsupp1 TEXT = NULL
+SET VAR vlsr REAL = 0
+--rsm Apr 27 2011 set NPE, Jeanway, Better Emblem Scout Laser Cost variable
+SET VAR vNpeLsr REAL = 0
+SET VAR vJwLsr REAL = 0
+SET VAR vBesLsr REAL = 0
+--rsm May 16 2011 set Yong Ming Laser Cost variable
+SET VAR vYongLsr REAL = 0
+--rsm July 27 2012 add var for Yong Zheng Laser Cost using 'vYzeLsr'
+SET VAR vYzeLsr REAL = 0
+--rsm Apr 27 2011 - end new var sets
+SET VAR vnpeklsr REAL = 0
+SET VAR vempklsr REAL = 0
+SET VAR vtag TEXT
+SET VAR vtagadd REAL = NULL
+--rsm Apr 27 2010 variable block  vXXflt (felt?)
+SET VAR vnpflt REAL = NULL
+SET VAR vjpflt REAL = NULL
+SET VAR vpeflt REAL = NULL
+SET VAR vjwflt REAL = NULL
+SET VAR vemflt REAL = NULL
+SET VAR vynflt REAL = NULL
+SET VAR vbeflt REAL = NULL
+SET VAR vjgflt REAL = NULL
+SET VAR vnkflt REAL = NULL
+SET VAR vekflt REAL = NULL
+--rsm Apr 27 2010 add VAR for Beauty Emblem  using 'beau'
+SET VAR vbeauflt  REAL = NULL
+--rsm June 18 add var for My Embroidery using 'myemb'
+SET VAR vmyembflt REAL  = NULL
+--rsm May 16 2011add var for felt for Yong MIng using 'Yong'   - NOT USED
+SET VAR vYongflt  REAL  = NULL
+--rsm July 27 2012 add var for felt for Yong Zheng using 'vYzeFlt'
+SET VAR vYzeFlt REAL = NULL
+--rsm Apr 27 2010 variable rush add on block vXXrsh (?)
+SET VAR vnprsh REAL = NULL
+SET VAR vjprsh REAL = NULL
+SET VAR vpersh REAL = NULL
+SET VAR vjwrsh REAL = NULL
+SET VAR vemrsh REAL = NULL
+SET VAR vynrsh REAL = NULL
+SET VAR vnkrsh REAL = NULL
+SET VAR vekrsh REAL = NULL
+SET VAR vbersh REAL = NULL
+SET VAR vjgrsh REAL = NULL
+SET VAR vjirsh REAL = NULL
+SET VAR vbesrsh REAL = NULL
+--rsm Apr 27 2010 add VAR for Beauty Emblem using'bu'
+SET VAR vbeaursh REAL = NULL
+--rsm June 18 add var for My Embroidery using 'myemb'
+SET VAR vmyembrsh REAL = NULL
+--rsm May 16 2011 add var for Rush add on for Yong Ming using 'Yong'
+SET VAR vYongrsh REAL = NULL
+--rsm July 27 2012 add var for Rush for Yong Zheng  using 'vYzeRsh'
+SET VAR vYzeRsh REAL = NULL
+--rsm Apr 27 2010 variable block  vmXXadd  (add-on?)
+SET VAR vmnpadd REAL = NULL
+SET VAR vmnkadd REAL = NULL
+SET VAR vmjpadd REAL = NULL
+SET VAR vmpeadd REAL = NULL
+SET VAR vmjwadd REAL = NULL
+SET VAR vmemadd REAL = NULL
+SET VAR vmemkadd REAL = NULL
+SET VAR vmynadd REAL = NULL
+SET VAR vmwgadd REAL = NULL
+SET VAR vmbeadd REAL = NULL
+SET VAR vmbesadd REAL = NULL
+SET VAR vmjgadd REAL = NULL
+SET VAR vmjiadd REAL = NULL
+--rsm Apr 27 2010 add VAR for Beauty Emblem using'bu'
+SET VAR vmbeauadd   REAL = NULL
+--rsm June 18 add var for My Embroidery using 'myemb'
+SET VAR vmmyembadd REAL = NULL
+--rsm May 16 2011 add var for add-on for for Yong Ming using 'Yong'
+SET VAR vYongadd REAL = NULL
+--rsm July 27 2012 add var for add on for Yong Zheng using 'vYzeAdd'
+SET VAR vYzeAdd REAL = NULL
+--rsm Apr 27 2010 variable block  misc?
+SET VAR vcom CURRENCY = NULL
+SET VAR vbemblsr REAL = NULL
+--rsm Apr 27 2010 variable block  mispladed vXXXrsh ?
+SET VAR vyungrsh REAL = NULL
+--rsm Apr 27 2010 variable block  vXXXkey (key fob?)
+SET VAR vnpekey REAL = NULL
+SET VAR vyngkey REAL = NULL
+--rsm Apr 30 2010 add key variable for Beauty Emblem
+SET VAR vbeaukey REAL = NULL
+--rsm June 18 add key var for My Embroidery using 'myemb'
+SET VAR vmyembkey REAL = NULL
+--rsm July 27 2012 add var for key fob for Yong Zheng using 'vYzeKey'
+SET VAR vYzeKey REAL = NULL
+--rsm Apr 27 2010 variable block  misc misplaced ?
+SET VAR vnpebase REAL = NULL
+--rsm May 18 2011 add base cost variable for Yong Ming
+SET VAR vYongBase REAL = NULL
+--rsm May 18 2011 add thread colors variable for Yong Ming
+SET VAR vYongCol REAL = NULL
+--rsm May 18 2011 add backing variable for Yong Ming
+SET VAR vYongBk REAL = NULL
+--rsm May 18 2011 add Laser Cut variable for Yong Ming
+SET VAR vYongLsr REAL = NULL
+--rsm July 27 2012 add new base 1 variable for Yong Zheng using vnewYze1
+SET VAR vnewYze1 REAL = NULL
+--rsm July 27 2012 add base cost variable for Yong Zheng using vYzeBase
+SET VAR vYzeBase REAL = NULL
+--rsm July 27 2012 add thread colors variable for Yong Zheng using vYzeCol
+SET VAR vYzeCol REAL = NULL
+--rsm July 27 2012 add backing variable for Yong Zheng using vYzeBk
+SET VAR vYzeBk REAL = NULL
+--rsm May 18 2011 add new base 1 variable for Yong Ming
+SET VAR vnewYong1 REAL = NULL
+--rsm Apr 30 2010 add base variable for Beauty Emblem
+SET VAR vbeaubase REAL = NULL
+--rsm June 18 add base var for My Embroidery using 'myemb'
+SET VAR vmyembbase REAL = NULL
+--rsm Apr 30 2010 add colors add on variable for Beauty Emblem
+SET VAR vbeaucol REAL = NULL
+--rsm June 18 add colors var for My Embroidery using 'myemb'
+SET VAR vmyembcol REAL = NULL
+--rsm Apr 30 2010 add backing variable for Beauty Emblem
+SET VAR vbeaubk REAL = NULL
+--rsm June 18 add bacling var for My Embroidery using 'myemb'
+SET VAR vmyembbk REAL = NULL
+--rsm Apr 30 2010 add new base 1  variable for Beauty Emblem
+SET VAR vnewbeau1 REAL = NULL
+--rsm June 18 add new base 1 var for My Embroidery using 'myemb'
+SET VAR vnewmyemb1 REAL = NULL
+--rsm Apr 30 2010 add laser cut variable for Beauty Emblem
+SET VAR vbeaulsr REAL = NULL
+--rsm June 18 add laser cut var for My Embroidery using 'myemb'
+SET VAR vmyemblsr REAL = NULL
+SET VAR vnpecol REAL = NULL
+SET VAR vyungbk REAL = NULL
+SET VAR vnpekbk REAL = NULL
+SET VAR vnpebk REAL = NULL
+SET VAR vnewnpe1 REAL = NULL
+SET VAR vjwybk REAL = NULL
+SET VAR vpeiybk REAL = NULL
+SET VAR vempbk REAL = NULL
+SET VAR vempkbk REAL = NULL
+SET VAR vjianbk REAL = NULL
+SET VAR vyngbase REAL = NULL
+SET VAR vnewyng1 REAL = NULL
+SET VAR vqembase REAL = NULL
+SET VAR vnewqem1 REAL = NULL
+SET VAR vyngcol REAL = NULL
+SET VAR vbescol REAL = NULL
+SET VAR vbelsr REAL = NULL
+SET VAR vbesflt REAL = NULL
+SET VAR vbtnbes REAL = NULL
+SET VAR vjwybase REAL = NULL
+SET VAR vnewjwy1 REAL = NULL
+SET VAR vjwycol REAL = NULL
+SET VAR vpeiybase REAL = NULL
+SET VAR vnewpeiy1 REAL = NULL
+SET VAR vpeiycol REAL = NULL
+SET VAR vjianbase REAL = NULL
+SET VAR vnewjian1 REAL = NULL
+SET VAR vjiancol REAL = NULL
+SET VAR vstarbase REAL = NULL
+SET VAR vnewstar1 REAL = 0.0
+SET VAR vnpekbase REAL = NULL
+SET VAR vnewnpek1 REAL = NULL
+SET VAR vnpekcol REAL = NULL
+SET VAR vwvlbase REAL = NULL
+SET VAR vnewwvl1 REAL = NULL
+SET VAR vwvlcol REAL = NULL
+SET VAR vwvlbk REAL = NULL
+set var vbesbase real = null
+SET VAR vempbase REAL = NULL
+SET VAR vnewemp1 REAL = NULL
+SET VAR vempcol REAL = NULL
+SET VAR vjpnbase REAL = NULL
+SET VAR vnewjpn1 REAL = NULL
+SET VAR vjpncol REAL = NULL
+SET VAR vjpnbk REAL = NULL
+SET VAR vbembbase REAL = NULL
+SET VAR vnewbemb1 REAL = NULL
+SET VAR vnewbes1 REAL = NULL
+SET VAR vbembcol REAL = NULL
+SET VAR vbembbk REAL = NULL
+SET VAR vempkbase REAL = NULL
+SET VAR vnewempk1 REAL = NULL
+SET VAR vempkcol REAL = NULL
+SET VAR vempkbk REAL = NULL
+SET VAR vjngbase REAL = NULL
+SET VAR vnewjng1 REAL = NULL
+SET VAR vjngcol REAL = NULL
+SET VAR vjngbk REAL = NULL
+SET VAR SIZE DOUBLE
+SET VAR vxpc1 INTEGER
+SET VAR vimpemb INTEGER
+SET VAR vcoluse7 INTEGER = 0
+SET VAR pcs INTEGER
+SET VAR ifact REAL
+SET VAR vnewbase REAL = NULL
+SET V vcoluse9 INTEGER = 0
+SET V vcoluse14 INTEGER = 0
+SET V itemqtlo TEXT = NULL
+SET V itemqthi TEXT = NULL
+IF vxpc1 < 1 THEN
+  GOTO leave
+ENDIF
+SET VAR itemqty INTEGER = .vxpc1
+--rsm June 11 2010 - deleted 20 lines of commented out code
+--rsm March2, 2010 added code to PREVENT
+--COFFEE MUGS from having 2 EXTRA QUANTITY ADDED to PO
+set var vprd TEXT
+select ITEMDESC into vprd from ITEMTBL where ITEMCD = .vitemcd
+IF vprd LIKE 'CM%' THEN
+  SET VAR itemqtlo TEXT = .vxpc1
+  SET VAR itemqthi TEXT = .vxpc1
+  GOTO endrand
+ENDIF
+-- Changed logic for qtylo and qtyhi DLM on 7.7.09
+--rsm Apr14 2010 - changed logic to always add 2 - no longer based on QTYRULE field value
+--IF vqtyrule = '+- 0%' THEN
+  SET VAR itemqthi INTEGER
+  SET VAR itemqtlo INTEGER
+--rsm Aug 25 2010 add logic for Stock ORders - no add 2 to qty
+  IF vAcctNo = '001236' THEN
+    SET VAR itemqtlo  = .vxpc1
+    SET VAR itemqthi  = .vxpc1
+  ENDIF
+--rsm Aug 25 2010 add logic for other orders - continue to add 2 to qty
+--rsm Dec 20 2011 remove logic to add 2 to qty
+  IF vAcctNo <> '001236' THEN
+    SET VAR itemqtlo  = .vxpc1
+    SET VAR itemqthi  = .vxpc1
+  ENDIF
+  SET VAR itemqthi text
+  SET VAR itemqtlo text
+  --rsm Apr 14 2010 add code to remove plus 2 items from sample orders
+if vOrdType = 'P' or vOrdType = 'M' then
+  SET VAR itemqthi INTEGER
+  SET VAR itemqtlo INTEGER
+  SET VAR itemqtlo  = .vxpc1
+  SET VAR itemqthi  = .vxpc1
+  SET VAR itemqthi text
+  SET VAR itemqtlo text
+ENDIF
+--rsm Apr14 2010 comment out this code as it is no loger valid
+-- rsm June 11 2010 deleted lines 1129 - 1148 - commented out code
+--rsm May 18 2001 Add ans set to vprc (cost price) Yong Ming base and new 1 variables to variable stack at line 1197 - 1198
+LABEL endrand
+IF vprc > 0.0 THEN
+  SET VAR vYongBase = .vprc
+  SET VAR vnewYong1 = .vprc
+  SET VAR vnewwvl1 = .vprc
+  SET VAR vnewstar1 = .vprc
+  SET VAR vnewnpe1 = .vprc
+  SET VAR vnewjpn1 = .vprc
+  SET VAR vnewemp1 = .vprc
+  SET VAR vnewpeiy1 = .vprc
+  SET VAR vnewnpek1 = .vprc
+  SET VAR vnewjian1 = .vprc
+  SET VAR vnewjwy1 = .vprc
+  SET VAR vnewyng1 = .vprc
+  SET VAR vnewjng1 = .vprc
+  SET VAR vnewbemb1 = .vprc
+  SET VAR vnewempk1 = .vprc
+  SET VAR vnewbes1 = .vprc
+  SET VAR vnewqem1 = .vprc
+  SET VAR vnpebase = .vprc
+  SET VAR vjpnbase = .vprc
+  SET VAR vempbase = .vprc
+  SET VAR vpeiybase = .vprc
+  SET VAR vjianbase = .vprc
+  SET VAR vstarbase = .vprc
+  SET VAR vjwybase = .vprc
+  SET VAR vyngbase = .vprc
+  SET VAR vjngbase = .vprc
+  SET VAR vbembbase = .vprc
+  SET VAR vwvlbase = .vprc
+  SET VAR vqembase = .vprc
+  SET VAR vnpekbase = .vprc
+--rsm Apr 30 2010 add set Beauty Emblem base variable
+    SET VAR vbeaubase = .vprc
+--rsm June 18 add set  My Embroidery base variable
+  SET VAR vmyembbase = .vprc
+--rsm July 27 2012 add set  Yong Zheng base variable
+  SET VAR vZheBase = .vprc
+  GOTO loadimp
+ENDIF
+SET VAR vqcolumn TEXT = NULL
+IF vxpc1 BETWEEN 44 AND 99 THEN
+  SET VAR vqcolumn = 'qty1'
+ENDIF
+IF vxpc1 BETWEEN 100 AND 199 THEN
+  SET VAR vqcolumn = 'qty2'
+ENDIF
+IF vxpc1 BETWEEN 200 AND 299 THEN
+  SET VAR vqcolumn = 'qty3'
+ENDIF
+IF vxpc1 BETWEEN 300 AND 499 THEN
+  SET VAR vqcolumn = 'qty4'
+ENDIF
+IF vxpc1 BETWEEN 500 AND 999 THEN
+  SET VAR vqcolumn = 'qty5'
+ENDIF
+IF vxpc1 BETWEEN 1000 AND 1999 THEN
+  SET VAR vqcolumn = 'qty6'
+ENDIF
+IF vxpc1 BETWEEN 2000 AND 2999 THEN
+  SET VAR vqcolumn = 'qty7'
+ENDIF
+IF vxpc1 BETWEEN 3000 AND 4999 THEN
+  SET VAR vqcolumn = 'qty8'
+ENDIF
+IF vxpc1 BETWEEN 5000 AND 9999 THEN
+  SET VAR vqcolumn = 'qty9'
+ENDIF
+IF vxpc1 = 10000 THEN
+  SET VAR vqcolumn = 'qty10'
+ENDIF
+IF vqcolumn IS NOT NULL THEN
+--rsm May 18 2011 add set Yong Ming base price from table YONGPRC column
+  SELECT &vqcolumn INTO vYongbase INDICATOR vi0 FROM Yongprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vjianbase INDICATOR vi0 FROM jianprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vpeiybase INDICATOR vi0 FROM peiyprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vnpekbase INDICATOR vi0 FROM npekprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vyngbase INDICATOR vi0 FROM yungprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vjwybase INDICATOR vi0 FROM jwayprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vnpebase INDICATOR vi0 FROM npeprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vwvlbase INDICATOR vi0 FROM wvlprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vempbase INDICATOR vi0 FROM empire WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vjpnbase INDICATOR vi0 FROM jipen WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vbembbase INDICATOR vi0 FROM bembprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vjngbase INDICATOR vi0 FROM jengprc WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vbesbase INDICATOR vi0 FROM bescout WHERE SIZE = .vcat AND pct = .vimpemb
+  SELECT &vqcolumn INTO vEmpkbase INDICATOR vi0 FROM Empkprc WHERE SIZE = .vcat AND pct = .vimpemb
+--rsm Apr 30 2010 add set Beauty Emblem base price from table BEAUPRC column
+  SELECT &vqcolumn INTO vBeaubase INDICATOR vi0 FROM Beauprc WHERE SIZE = .vcat AND pct = .vimpemb
+  --rsm June 18 2010 add set My Embroidery base price from table MYEMBPRC column
+  SELECT &vqcolumn INTO vMyembbase INDICATOR vi0 FROM Myembprc WHERE SIZE = .vcat AND pct = .vimpemb
+    --rsm July 27 2012 add set Yong Zheng base price from table YZEPRC column
+  SELECT &vqcolumn INTO vYzeBase INDICATOR vi0 FROM Yzeprc WHERE SIZE = .vcat AND pct = .vimpemb
+  GOTO contcalc
+ENDIF
+IF vxpc1 BETWEEN 10000 AND 24999 THEN
+  SET VAR vyngbase = qty10 IN yungprc WHERE SIZE = .vcat AND pct >= .vimpemb
+  GOTO contcalc
+ENDIF
+IF vxpc1 BETWEEN 25000 AND 49999 THEN
+  SET VAR vyngbase = qty11 IN yungprc WHERE SIZE = .vcat AND pct >= .vimpemb
+  GOTO contcalc
+ENDIF
+IF vxpc1 > 49999 THEN
+  SET VAR vyngbase = qty12 IN yungprc WHERE SIZE = .vcat AND pct >= .vimpemb
+  GOTO contcalc
+ENDIF
+LABEL contcalc
+--rsm May 18 2011 add Yong Ming to this percentage setting
+SET VAR vYongbase = (.vYongbase * .vpctg)
+SET VAR vwvlbase = (.vwvlbase * .vpctg)
+SET VAR vnpebase = (.vnpebase * .vpctg)
+SET VAR vjpnbase = (.vjpnbase * .vpctg)
+SET VAR vempbase = (.vempbase * .vpctg)
+SET VAR vpeiybase = (.vpeiybase * .vpctg)
+SET VAR vnpekbase = (.vnpekbase * .vpctg)
+SET VAR vempkbase = (.vempkbase * .vpctg)
+SET VAR vjianbase = (.vjianbase * .vpctg)
+SET VAR vjwybase = (.vjwybase * .vpctg)
+SET VAR vyngbase = (.vyngbase * .vpctg)
+SET VAR vjngbase = (.vjngbase * .vpctg)
+SET VAR vbembbase = (.vbembbase * .vpctg)
+--rsm Apr 30 2010 add Beauty Emblem to this percentage setting
+SET VAR vbeaubase = (.vbeaubase * .vpctg)
+--rsm June 18 2010 add My Embroidery to this percentage setting
+SET VAR vmyembbase = (.vmyembbase * .vpctg)
+--rsm July 27 2012 add Yong Zheng to this percentage setting
+SET VAR vYzeBase = (.vYzeBase * .vpctg)
+IF vimpcol > 0 THEN
+  SET VAR vcoluse7 = (.vimpcol - 7)
+  SET VAR vcoluse9 = (.vimpcol - 9)
+  SET VAR vcoluse14 = (.vimpcol - 14)
+ENDIF
+IF vcoluse9 > 0 THEN
+--rsm May 18 2011 add color lift for Yong Ming using price provided by supplier spreadsheet
+  SET VAR vYongcol = (.vcoluse9 * .04)
+  SET VAR vnpekcol = (.vcoluse9 * .035)
+  SET VAR vbescol = (.vcoluse9 * .02)
+  SET VAR vjiancol = (.vcoluse9 * .025)
+  SET VAR vpeiycol = (.vcoluse9 * .05)
+  SET VAR vyngcol = (.vcoluse9 * .03)
+  SET VAR vnpecol = (.vcoluse9 * .036)
+  SET VAR vempcol = (.vcoluse9 * .05)
+  SET VAR vjpncol = (.vcoluse9 * .035)
+  SET VAR vempkcol = (.vcoluse9 * .035)
+  SET VAR vjwycol = (.vcoluse9 * .05)
+  SET VAR vbembcol = (.vcoluse9 * .036)
+  SET VAR vjngcol = (.vcoluse9 * .03)
+--rsm Apr 30 2010 add color lift for Beauty Emblem
+  SET VAR vbeaucol = (.vcoluse9 * .028)
+  --rsm June 18 2010 add color lift for My Embroidery
+  SET VAR vmyembcol = (.vcoluse9 * .05)
+    --rsm July 27 2012 add color lift for Yong Zheng
+  SET VAR vYzecol = (.vcoluse9 * .04)
+ENDIF
+IF vcat > 5.0 THEN
+  IF vcoluse7 > 0 THEN
+    SET VAR vnpecol = (.vcoluse7 * .04)
+  ENDIF
+ENDIF
+--rsm June 11 2010 begin new backing pricing lookups from modified supplier pricing tables
+--tables used BEAUPRC,BEMBPRC,JENGPRC,EMPIRE,JWAYPRC,YUNGPRC,NPEPRC,NPEKPRC,PEIYPRC,JIANPRC,JIPEN,WVLPRC
+--based on varibles set in lines 700-714
+--rsm June 18 - add My Embroidery variable lookup
+--rsm May 18 2011 - add Yong Ming variable lookups
+--rsm July 27 2012 - add Yong Zheng variable lookups
+IF vbak = 'PS' THEN
+  SET VAR vYzegbk = prsens1 in YZEPRC where SIZE = .vcat
+  SET VAR vYongbk = prsens1 in YONGPRC where SIZE = .vcat
+  SET VAR vbeaubk = prsens1 IN BEAUPRC WHERE SIZE = .vcat
+  SET VAR vbembbk = prsens1 IN bembprc WHERE SIZE = .vcat
+  SET VAR vjngbk = prsens1 IN jengprc WHERE SIZE = .vcat
+  SET VAR vempbk = prsens1 IN empire WHERE SIZE = .vcat
+  SET VAR vjwybk = prsens1 IN jwayprc WHERE SIZE = .vcat
+  SET VAR vyungbk = prsens1 IN yungprc WHERE SIZE = .vcat
+  SET VAR vnpebk = prsens1 IN npeprc WHERE SIZE = .vcat
+  SET VAR vnpekbk = prsens1 IN npekprc WHERE SIZE = .vcat
+  SET VAR vpeiybk = prsens1 IN peiyprc WHERE SIZE = .vcat
+  SET VAR vjianbk = prsens1 IN jianprc WHERE SIZE = .vcat
+  SET VAR vjpnbk = prsens1 IN jipen WHERE SIZE = .vcat
+  SET VAR vwvlbk = prsens1 IN wvlprc WHERE SIZE = .vcat
+  SET VAR vmyembbk = prsens1 IN myembprc WHERE SIZE = .vcat
+ENDIF
+IF vbak = 'EVA' THEN
+  SET VAR vYzebk = EVA in YZEPRC where SIZE = .vcat
+  SET VAR vYongbk = EVA in YONGPRC where SIZE = .vcat
+  SET VAR vbeaubk = EVA IN BEAUPRC WHERE SIZE = .vcat
+  SET VAR vbembbk = EVA IN bembprc WHERE SIZE = .vcat
+  SET VAR vjngbk = EVA IN jengprc WHERE SIZE = .vcat
+  SET VAR vempbk = EVA IN empire WHERE SIZE = .vcat
+  SET VAR vjwybk = EVA IN jwayprc WHERE SIZE = .vcat
+  SET VAR vyungbk = EVA IN yungprc WHERE SIZE = .vcat
+  SET VAR vnpebk = EVA IN npeprc WHERE SIZE = .vcat
+  SET VAR vnpekbk = EVA IN npekprc WHERE SIZE = .vcat
+  SET VAR vpeiybk = EVA IN peiyprc WHERE SIZE = .vcat
+  SET VAR vjianbk = EVA IN jianprc WHERE SIZE = .vcat
+  SET VAR vjpnbk = EVA IN jipen WHERE SIZE = .vcat
+  SET VAR vwvlbk = EVA IN wvlprc WHERE SIZE = .vcat
+  SET VAR vmyembbk = EVA IN myembprc WHERE SIZE = .vcat
+ENDIF
+IF vbak = 'U03' THEN
+  SET VAR vYzebk = U03 in YZEPRC where SIZE = .vcat
+  SET VAR vYongbk = U03 in YONGPRC where SIZE = .vcat
+  SET VAR vbeaubk = U03 IN BEAUPRC WHERE SIZE = .vcat
+  SET VAR vbembbk = U03 IN bembprc WHERE SIZE = .vcat
+  SET VAR vjngbk = U03 IN jengprc WHERE SIZE = .vcat
+  SET VAR vempbk = U03 IN empire WHERE SIZE = .vcat
+--rsm Oct 22 2010 add line to get price from empkrpc boy scout special k price table
+  SET VAR vempkbk = U03 IN empkprc WHERE SIZE = .vcat
+  SET VAR vjwybk = U03 IN jwayprc WHERE SIZE = .vcat
+  SET VAR vyungbk = U03 IN yungprc WHERE SIZE = .vcat
+  SET VAR vnpebk = U03 IN npeprc WHERE SIZE = .vcat
+  SET VAR vnpekbk = U03 IN npekprc WHERE SIZE = .vcat
+  SET VAR vpeiybk = U03 IN peiyprc WHERE SIZE = .vcat
+  SET VAR vjianbk = U03 IN jianprc WHERE SIZE = .vcat
+  SET VAR vjpnbk = U03 IN jipen WHERE SIZE = .vcat
+  SET VAR vwvlbk = U03 IN wvlprc WHERE SIZE = .vcat
+  SET VAR vmyembbk = U03 IN myembprc WHERE SIZE = .vcat
+ENDIF
+IF vbak = 'A02' THEN
+  SET VAR vYzebk = A02 in YZEPRC where SIZE = .vcat
+  SET VAR vYongbk = A02 in YONGPRC where SIZE = .vcat
+  SET VAR vbeaubk = A02 IN BEAUPRC WHERE SIZE = .vcat
+  SET VAR vbembbk = A02 IN bembprc WHERE SIZE = .vcat
+  SET VAR vjngbk = A02 IN jengprc WHERE SIZE = .vcat
+  SET VAR vempbk = A02 IN empire WHERE SIZE = .vcat
+  SET VAR vjwybk = A02 IN jwayprc WHERE SIZE = .vcat
+  SET VAR vyungbk = A02 IN yungprc WHERE SIZE = .vcat
+  SET VAR vnpebk = A02 IN npeprc WHERE SIZE = .vcat
+  SET VAR vnpekbk = A02 IN npekprc WHERE SIZE = .vcat
+  SET VAR vpeiybk = A02 IN peiyprc WHERE SIZE = .vcat
+  SET VAR vjianbk = A02 IN jianprc WHERE SIZE = .vcat
+  SET VAR vjpnbk = A02 IN jipen WHERE SIZE = .vcat
+  SET VAR vwvlbk = A02 IN wvlprc WHERE SIZE = .vcat
+  SET VAR vmyembbk = A02 IN myembprc WHERE SIZE = .vcat
+ENDIF
+IF vbak = 'BSA' THEN
+  SET VAR vbeaubk = BSA IN BEAUPRC WHERE SIZE = .vcat
+  SET VAR vbembbk = BSA IN bembprc WHERE SIZE = .vcat
+  SET VAR vjngbk = BSA IN jengprc WHERE SIZE = .vcat
+  SET VAR vempbk = BSA IN empire WHERE SIZE = .vcat
+  SET VAR vjwybk = BSA IN jwayprc WHERE SIZE = .vcat
+  SET VAR vyungbk = BSA IN yungprc WHERE SIZE = .vcat
+  SET VAR vnpebk = BSA IN npeprc WHERE SIZE = .vcat
+  SET VAR vnpekbk = BSA IN npekprc WHERE SIZE = .vcat
+  SET VAR vpeiybk = BSA IN peiyprc WHERE SIZE = .vcat
+  SET VAR vjianbk = BSA IN jianprc WHERE SIZE = .vcat
+  SET VAR vjpnbk = BSA IN jipen WHERE SIZE = .vcat
+  SET VAR vwvlbk = BSA IN wvlprc WHERE SIZE = .vcat
+  SET VAR vmyembbk = BSA IN myembprc WHERE SIZE = .vcat
+ENDIF
+IF vbak = 'BEM' THEN
+  SET VAR vbeaubk = BEM IN BEAUPRC WHERE SIZE = .vcat
+  SET VAR vbembbk = BEM IN bembprc WHERE SIZE = .vcat
+  SET VAR vjngbk = BEM IN jengprc WHERE SIZE = .vcat
+  SET VAR vempbk = BEM IN empire WHERE SIZE = .vcat
+  SET VAR vjwybk = BEM IN jwayprc WHERE SIZE = .vcat
+  SET VAR vyungbk = BEM IN yungprc WHERE SIZE = .vcat
+  SET VAR vnpebk = BEM IN npeprc WHERE SIZE = .vcat
+  SET VAR vnpekbk = BEM IN npekprc WHERE SIZE = .vcat
+  SET VAR vpeiybk = BEM IN peiyprc WHERE SIZE = .vcat
+  SET VAR vjianbk = BEM IN jianprc WHERE SIZE = .vcat
+  SET VAR vjpnbk = BEM IN jipen WHERE SIZE = .vcat
+  SET VAR vwvlbk = BEM IN wvlprc WHERE SIZE = .vcat
+  SET VAR vmyembbk = BEM IN myembprc WHERE SIZE = .vcat
+ENDIF
+--rsm June 11 2010 end new backing pricing code
+--rsm set supplier cost value for button hole cost vbtnh
+--rsm May 18 2001 add Button Hole cost for Yong Ming
+--rsm July 27 2012   add Button Hole cost for Yong Zheng  using vbtnYze
+IF vbtnh = 'NO' OR vbtnh IS NULL THEN
+  SET VAR vbtnYze = NULL
+  SET VAR vbtnYong = NULL
+  SET VAR vbtnnpe = NULL
+  SET VAR vbtnyng = NULL
+  SET VAR vbtnemp = NULL
+  SET VAR vbtnjwy = NULL
+  SET VAR vbtnjpn = NULL
+  SET VAR vbtnbemb = NULL
+  SET VAR vbtnjng = NULL
+-- rsm Apr 28 2010 add code to set Beauty Emblem variable to NULL
+  SET VAR vbtnbeau = NULL
+-- rsm June 18 2010 add code to set My Embroidery variable to NULL
+  SET VAR vbtnmyemb = NULL
+ELSE
+  SET VAR vbtnYze = 0
+  SET VAR vbtnYong = .05
+  SET VAR vbtnnpe = .05
+  SET VAR vbtnbes = .04
+  SET VAR vbtnnpek = .035
+  SET VAR vbtnempk = .035
+  SET VAR vbtnyng = .01
+  SET VAR vbtnemp = .06
+  SET VAR vbtnjwy = .03
+  SET VAR vbtnjpn = .045
+  SET VAR vbtnbemb = .03
+  SET VAR vbtnjng = .05
+-- rsm Apr 28 2010 add code to set Beauty Emblem btn variable
+  SET VAR vbtnbeau = .045
+  -- rsm Apr 28 2010 add code to set My Embroidery btn variable
+  SET VAR vbtnmyemb = .03
+ENDIF
+--rsm Apr 27 2011  NPE is vlsr , add Jeanway and Better Emblem Scout laser cut pricing
+--rsm Apr 27 1011 - update prices for Better Emblem laser cut
+-- rsm May 18 2011 add Yong Ming Laser Cut
+--rsm July 27 2012 no laser cost for Yong Zheng  so set to 0
+   SET VAR vYzelsr = 0
+IF vimplaser = 'Y' THEN
+  SET VAR vlsr = .036
+  IF vcat = 1.0 THEN
+    SET VAR vlsr = .018
+  ENDIF
+  IF vcat = 1.5 THEN
+    SET VAR vlsr = .018
+  ENDIF
+  IF vcat = 2.0 THEN
+    SET VAR vYongLsr = .016
+    set var vbelsr = .025
+    set var vnpeklsr = .02
+    set var vempklsr = .02
+    SET VAR vJwLsr = .013
+    SET VAR vBesLsr = .03
+    SET VAR vlsr = .018
+  ENDIF
+  IF vcat = 2.5 THEN
+    SET VAR vYongLsr = .02
+    set var vbelsr = .038
+    set var vnpeklsr = .02
+    set var vempklsr = .02
+    SET VAR vJwLsr = .016
+    SET VAR vBesLsr = .04
+    SET VAR vlsr = .018
+  ENDIF
+  IF vcat = 3.0 THEN
+    SET VAR vYongLsr = .024
+    set var vbelsr = .045
+    set var vnpeklsr = .03
+    set var vempklsr = .03
+    SET VAR vJwLsr =  .019
+    SET VAR vBesLsr = .05
+    SET VAR vlsr = .027
+  ENDIF
+  IF vcat = 3.5 THEN
+    SET VAR vYongLsr = .028
+    set var vbelsr = .053
+    set var vnpeklsr = .03
+    set var vempklsr = .03
+    SET VAR vJwLsr =  .022
+    SET VAR vBesLsr =  .05
+    SET VAR vlsr = .027
+  ENDIF
+  IF vcat = 4.0 THEN
+    SET VAR vYongLsr = .032
+    set var vbelsr = .06
+    set var vnpeklsr = .04
+    set var vempklsr = .04
+    SET VAR vJwLsr =  .025
+    SET VAR vBesLsr =  .06
+  ENDIF
+  IF vcat = 4.5 THEN
+    SET VAR vYongLsr = .036
+    set var vbelsr = .068
+    set var vnpeklsr = .04
+    set var vempklsr = .04
+    SET VAR vJwLsr =  .029
+    SET VAR vBesLsr =  .07
+  ENDIF
+  IF vcat = 5.0 THEN
+    SET VAR vYongLsr = .04
+    set var vbelsr = .075
+    set var vnpeklsr = .04
+    set var vempklsr = .04
+    SET VAR vJwLsr =  .032
+    SET VAR vBesLsr =  .08
+  ENDIF
+  IF vcat = 5.5 THEN
+    SET VAR vlsr = .049
+    set var vempklsr = .04
+  ENDIF
+  IF vcat = 6.0 THEN
+    SET VAR vlsr = .054
+    set var vempklsr = .08
+  ENDIF
+  IF vcat = 6.5 THEN
+    SET VAR vlsr = .059
+    set var vempklsr = .08
+  ENDIF
+  IF vcat = 7.0 THEN
+    SET VAR vlsr = .063
+    set var vempklsr = .09
+  ENDIF
+  IF vcat = 7.5 THEN
+    SET VAR vlsr = .068
+    set var vempklsr = .09
+  ENDIF
+  IF vcat = 8.0 THEN
+    SET VAR vlsr = .073
+    set var vempklsr = .10
+  ENDIF
+  IF vcat = 8.5 THEN
+    SET VAR vlsr = .078
+    set var vempklsr = .10
+  ENDIF
+  IF vcat = 9.0 THEN
+    SET VAR vlsr = .083
+  ENDIF
+  IF vcat = 9.5 THEN
+    SET VAR vlsr = .088
+  ENDIF
+  IF vcat = 10.0 THEN
+    SET VAR vlsr = .093
+  ENDIF
+  IF vcat = 10.5 THEN
+    SET VAR vlsr = .098
+  ENDIF
+  IF vcat = 11.0 THEN
+    SET VAR vlsr = .103
+  ENDIF
+  IF vcat = 11.5 THEN
+    SET VAR vlsr = .107
+  ENDIF
+  IF vcat = 12.0 THEN
+    SET VAR vlsr = .112
+  ENDIF
+ENDIF
+IF vkeyr = 'YES' THEN
+  SET VAR vyngkey = .024
+  SET VAR vnpekey = .04
+ENDIF
+IF vtag = 'YES' THEN
+  SET VAR vtagadd = .06
+ENDIF
+--rsm July 27 2012 Yong Zheng metalic is variable so not added to calculation
+--rsm May 18 2011  Yong Ming not in Metallic calculation block
+IF vmtl = 'YES' THEN
+  SET VAR vmnpadd = (.vnpebase * .15)
+  SET VAR vmnkadd = (.vnpekbase * .15)
+  SET VAR vmjwadd = (.vjwybase * .15)
+  SET VAR vmpeadd = (.vpeiybase * .15)
+  SET VAR vmjiadd = (.vjianbase * .15)
+  SET VAR vmemadd = (.vempbase * .15)
+--rsm Oct 22 2010 EmpireK pricing for metallic is a 10-25% range - so cannot add in program
+--- must be added manually by purchasing department
+ -- SET VAR vmemkadd = (.vempkbase * .15)
+  SET VAR vmjpadd = (.vjpnbase * .15)
+  SET VAR vmynadd = (.vyngbase * .15)
+  SET VAR vmbeadd = (.vbembbase * .15)
+  SET VAR vmbesadd = (.vbesbase * .10)
+  SET VAR vmjgadd = (.vjngbase * .15)
+--rsm June 18 2010 add My Embroidery metalic uplift
+  SET VAR vmmyembadd = (.vmyembbase * .15)
+ENDIF
+--rsm Apr 30 2010 begin felt price lift section
+IF vimpfelt = 'Y' THEN
+  If vcat in (2.0,2.5) then
+     set var vbesflt = .02
+  endif
+  If vcat in (3.0,3.5) then
+     set var vbesflt = .03
+  endif
+  If vcat in (4.0,4.5) then
+     set var vbesflt = .04
+  endif
+  If vcat in (5.0) then
+     set var vbesflt = .05
+  endif
+  SET VAR vnpflt = (.vnpebase * .10)
+  SET VAR vjwflt = (.vjwybase * .15)
+  SET VAR vpeflt = (.vpeiybase * .15)
+  SET VAR vnkflt = (.vnpekbase * .15)
+  SET VAR vekflt = (.vempkbase * .15)
+  SET VAR vemflt = (.vempbase * .15)
+  --rsm Oct 20 1010 no uplift in code for EmpireK for felt
+  SET VAR vjpflt = (.vjpnbase * .15)
+  SET VAR vynflt = (.vyngbase * .15)
+  SET VAR vjgflt = (.vjngbase * .05)
+  SET VAR vbeflt = (.02 * .vxpc1)
+--rsm Apr 30 2010 add Beauty Emblem felt price lift
+  SET VAR vbeauflt = (.vbeaubase * .10)
+--rsm June 182010 add My Embroidery felt price lift
+  SET VAR vmyembflt = (.vmyembbase * .10)
+ENDIF
+--rsm Apr 30 2010 begin rush add on price lift section
+--rsm June 14 2010 change jeanway rush to 10% from 25% in vjwrsh calculation below
+--rsm May 18 2011 Yong Ming rush add 25%
+--rsm July 27 2012 Yong Zheng rush add 25%
+IF vimprush = 'YES' THEN
+  SET VAR vYzeRsh = (vYzeBase * .25)
+  SET VAR vYongrsh = (vYongBase * .25)
+  SET VAR vnprsh = (.vnpebase * .25)
+  SET VAR vjwrsh = (.vjwybase * .10)
+  SET VAR vpersh = (.vpeiybase * .25)
+  SET VAR vnkrsh = (.vnpekbase * .25)
+  SET VAR vekrsh = (.vempkbase * .25)
+  SET VAR vjirsh = (.vjianbase * .10)
+  SET VAR vemrsh = (.vempbase * .25)
+  SET VAR vjprsh = (.vjpnbase * .25)
+  SET VAR vynrsh = (.vyngbase * .10)
+  SET VAR vbersh = (.vbembbase * .10)
+  SET VAR vbesrsh = (.vbesbase * .25)
+  SET VAR vjgrsh = (.vjngbase * .25)
+--rsm Apr 30 2010 add Beauty Emblem rush price lift
+  SET VAR vbeaursh = (.vbeaubase * .14)
+--rsm June 18 add My Embroidery rush price lift
+  SET VAR vmyembrsh = (.vmyembbase * .25)
+ENDIF
+CLEAR VAR vcat
+--rsm May 18 2011 Add Yong Ming cost aggregation code
+SET VAR vNewYong1 = (.vYongbase + .vYongcol + .vYongbk + .vYongrsh + .vYongLsr + .vbtnYong)
+--rsm July 27 2012 Add Yong Zheng cost aggregation code
+SET VAR vNewYze1 = (.vYzebase + .vYzecol + .vYzebk + .vYzersh + .vYzeLsr + .vbtnYze)
+SET VAR vnewwvl1 = (.vwvlbase + .vwvlbk)
+SET VAR vnewnpe1 = (.vnpebase + .vnpecol + .vnpebk + .vlsr + .vnpflt + .vnprsh + .vmnpadd + .vbtnnpe + .vnpekey)
+SET VAR vnewemp1 = (.vempbase + .vempcol + .vempbk + .vemflt + .vemrsh + .vmemadd + .vbtnemp)
+SET VAR vnewyng1 = (.vyngbase + .vyngcol + .vyungbk + .vynflt + .vynrsh + .vmynadd + .vbtnyng)
+--rsm June 18 comment - only Yung Ming and Better Emblem do luggage tags or key rings
+SET VAR vnewyng1 = (.vnewyng1 + .vtagadd + .vyngkey)
+SET VAR vnewpeiy1 = (.vpeiybase + .vpeiycol + .vpeiybk + .vpeflt + .vpersh + .vmpeadd)
+SET VAR vnewnpek1 = (.vnpekbase + .vnpekcol + .vnpekbk + .vnkflt + .vnkrsh + .vmnkadd + .vbtnnpek + .vnpeklsr)
+--rsm Oct 22 2010 - empire K price roll up
+SET VAR vnewempk1 = (.vempkbase + .vempkcol + .vempkbk + .vekflt + .vekrsh + .vmemkadd + .vbtnempk + .vempklsr)
+SET VAR vnewjian1 = (.vjianbase + .vjiancol + .vjianbk + .vjirsh + .vmjiadd)
+SET VAR vnewjwy1 = (.vjwybase + .vjwycol + .vjwybk + .vjwflt + .vjwrsh + .vmjwadd + .vbtnjwy)
+SET VAR vnewjpn1 = (.vjpnbase + .vjpncol + .vjpnbk + .vjpflt + .vjprsh + .vmjpadd + .vbtnjpn)
+SET VAR vnewqem1 = (.vjpnbase + .vjpncol + .vjpnbk + .vjpflt + .vjprsh + .vmjpadd + .vbtnjpn)
+SET VAR vnewbemb1 = (.vbembbase + .vbembcol + .vbembbk + .vbeflt + .vbersh + .vmbeadd + .vbtnbemb + vtagadd)
+SET VAR vnewbes1 = (.vbesbase + .vbescol + .vbesflt + .vbesrsh + .vmbeadd + .vbtnbes + .vbembbk)
+SET VAR vnewjng1 = (.vjngbase + .vjngcol + .vjngbk + .vjgflt + .vjgrsh + .vmjgadd + .vbtnjng)
+--rsm Apr 30 2010 - add new calculation for Beauty Emblem
+SET VAR vnewbeau1 = (.vbeaubase + .vbeaucol + .vbeaubk + .vbeauflt + .vbeaursh + .vmbeauadd + .vbtnbeau)
+--rsm June 18 2010 - add new calculation for My Embroidery
+SET VAR vnewmyemb1 = (.vmyembbase + .vmyembcol + .vmyembbk + .vmyembflt + .vmyembrsh + .vmmyembadd + .vbtnmyemb)
+IF vkeyr = 'YES' THEN
+  SET VAR vnewjpn1 = 0.0
+  SET VAR vnewqem1 = 0.0
+  SET VAR vnewemp1 = 0.0
+  SET VAR vnewpeiy1 = 0.0
+  SET VAR vnewjian1 = 0.0
+  SET VAR vnewnpek1 = 0.0
+  SET VAR vnewempk1 = 0.0
+  SET VAR vnewjwy1 = 0.0
+  SET VAR vnewbemb1 = 0.0
+  SET VAR vnewjng1 = 0.0
+--rsm Apr 30 2010 add Beauty Emblem to key ring zeroing
+  SET VAR vnewbeau1 = 0.0
+  --rsm Apr 30 2010 add My EMb to key ring zeroing
+  SET VAR vnewmyemb1 = 0.0
+    --rsm July 27 2012 add Yong Zheng to key ring zeroing
+  SET VAR vnewYze1 = 0.0
+ENDIF
+IF vtag = 'YES' THEN
+  SET VAR vnewnpe1 = 0.0
+  SET VAR vnewjpn1 = 0.0
+  SET VAR vnewqem1 = 0.0
+  SET VAR vnewemp1 = 0.0
+  SET VAR vnewpeiy1 = 0.0
+  SET VAR vnewnpek1 = 0.0
+  SET VAR vnewstar1 = 0.0
+  SET VAR vnewempk1 = 0.0
+  SET VAR vnewjian1 = 0.0
+  SET VAR vnewjwy1 = 0.0
+  SET VAR vnewjng1 = 0.0
+--rsm Apr 30 2010 add Beauty Emblem to luggage tag zeroing
+  SET VAR vnewbeau1 = 0.0
+--rsm June 18  2010 add My Embroidery to luggage tag zeroing
+  SET VAR vnewmyemb1 = 0.0
+  --rsm July 27 2012 add Yong Zheng to luggage tag zeroing
+  SET VAR vnewYze1 = 0.0
+ENDIF
+LABEL loadimp
+SET VAR vuser = (CVAL('NETUSER'))
+DELETE ROWS FROM prodimp WHERE produser = .vuser
+IF vpin = 'yes' THEN
+  SET VAR vpqty1 TEXT
+  SET VAR vpqty2 TEXT
+  SET VAR vpqty3 TEXT
+  SET VAR vpqty4 TEXT
+  SET VAR vpqty5 TEXT
+  IF vpcost1 > 0.0 THEN
+    INSERT INTO prodimp (supploc,suppbase,suppseq,produser) +
+    VALUES (.vsupp1,.vpcost1,.vpqty1,.vuser)
+  ENDIF
+  IF vpcost2 > 0.0 THEN
+    INSERT INTO prodimp (supploc,suppbase,suppseq,produser) +
+    VALUES (.vsupp1,.vpcost2,.vpqty2,.vuser)
+  ENDIF
+  IF vpcost3 > 0.0 THEN
+    INSERT INTO prodimp (supploc,suppbase,suppseq,produser) +
+    VALUES (.vsupp1,.vpcost3,.vpqty3,.vuser)
+  ENDIF
+  IF vpcost4 > 0.0 THEN
+    INSERT INTO prodimp (supploc,suppbase,suppseq,produser) +
+    VALUES (.vsupp1,.vpcost4,.vpqty4,.vuser)
+  ENDIF
+  IF vpcost5 > 0.0 THEN
+    INSERT INTO prodimp (supploc,suppbase,suppseq,produser) +
+    VALUES (.vsupp1,.vpcost5,.vpqty5,.vuser)
+  ENDIF
+  GOTO redisplay
+ENDIF
+--rsm July 19, 2010 added QEM as a photo emblem supplier
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('QEM',0.0,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('QSE',0.0,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('USA',0.0,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Mir',0.0,.vuser)
+--rsm Sep 22 2011 add Pin Arts Industries to supplier drop down
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('PAI',0.0,.vuser)
+--rsm Dec 13,  2011 add Jenkins Enterprises to supplier drop down
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('JNK',0.0,.vuser)
+IF vphoto = 'yes' THEN
+  INSERT INTO prodimp (supploc,suppbase,produser) +
+  VALUES ('MEX',0.0,.vuser)
+  IF vprc > 0.0 THEN
+    UPDATE prodimp SET suppbase = .vprc WHERE produser = .vuser
+  ENDIF
+  GOTO redisplay
+ENDIF
+-- rsm Sep 8 2011 - if Header card load values with 0.00
+IF vhdr = 'YES' THEN
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Qem',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('NPE',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Emp',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Yung',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Peiy',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Mex',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Jian',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('NpeK',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('EmpK',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Jway',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('BEmb',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('BESc',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Dj',0.00,.vuser)
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Star',0.00,.vuser)
+                     -- rsm Apr 30 2010 add Beauty Emblem to drop down table
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('Beau',0.00,.vuser)
+                     -- rsm June 18 2010 add My Embroidery to drop down table
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('MyEm',0.00,.vuser)
+                     -- rsm May 19, 2011 add Yong Ming Embroidery to drop down table
+                     INSERT INTO prodimp (supploc,suppbase,produser) +
+                     VALUES ('YME',0.00,.vuser)
+                     GOTO NOLOAD
+ENDIF
+
+{INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Jipn',.vnewjpn1,.vuser)}
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Qem',.vnewqem1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('NPE',.vnewnpe1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Emp',.vnewemp1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Yung',.vnewyng1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Peiy',.vnewpeiy1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Mex',.vnewpeiy1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Jian',.vnewjian1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('NpeK',.vnewnpek1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('EmpK',.vnewempk1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Jway',.vnewjwy1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('BEmb',.vnewbemb1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('BESc',.vnewbes1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Dj',.vnewjng1,.vuser)
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Star',.vnewstar1,.vuser)
+-- rsm Apr 30 2010 add Beauty Emblem to drop down table
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('Beau',.vnewbeau1,.vuser)
+-- rsm June 18 2010 add My Embroidery to drop down table
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('MyEm',.vnewmyemb1,.vuser)
+-- rsm May 19, 2011 add Yong Ming Embroidery to drop down table
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('YME',.vNewYong1,.vuser)
+-- rsm July 27 2012 add Yong Zheng Embroidery to drop down table
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('YZE',.vNewYze1,.vuser)
+-- rsm Oct 17 2012 add RayKae to drop down table
+INSERT INTO prodimp (supploc,suppbase,produser) +
+VALUES ('RKC',0.00,.vuser)
+LABEL NOLOAD
+LABEL redisplay
+CLS
+--rsm June 8 2010 added this line to bring up packaging instructions for line item before choosing supplier
+edit using absys_pkg_const where ITEMCD = .vitemcd
+--rsm June 8 2010
+CHOOSE vsel FROM #VALUES FOR (LJS(supploc,4) & suppseq & supptext), supploc FROM prodimp +
+WHERE supptext IS NOT NULL AND produser = .vuser ORDER BY suppbase +
+TITLE 'Select a Vendor' CAPTION 'Purchase Orders' +
+LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+|TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+|LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+IF vsel = '[Esc]' THEN
+  SET VAR vmsg = 'Would you like to search for previous suppliers?'
+  DIALOG .vmsg vresp vkey no OPTION MESSAGE_FONT_NAME VERDANA +
+  |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 +
+  |MESSAGE_BOLD ON |THEMENAME R:Base Rocks!
+  IF vresp = 'Yes' THEN
+    SET VAR vmore = itemcd IN poab WHERE itemcd = .vitemcd
+    IF vmore IS NULL THEN
+      GOTO nextsrch
+    ENDIF
+    CHOOSE vimpo FROM #VALUES FOR +
+    (LJS(itemcd,8) & (LJS(itemrev,2) & (LJS(itemdesc,30) & (LJS(suppnm,4) & pono)))), +
+    pono FROM poab WHERE itemcd = .vitemcd +
+    ORDER BY podate DESC +
+    TITLE 'PO New History' CAPTION 'Purchase Orders' +
+    LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+    |TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+    |LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+    IF vimpo = '[Esc]' THEN
+      GOTO nextsrch
+    ENDIF
+    IF vimpo IS NOT NULL THEN
+      GOTO redisplay
+    ENDIF
+    LABEL nextsrch
+    SET VAR vmore = NULL
+    SET VAR vmore = desno IN prodsched WHERE desno = .vitemcd +
+    AND imppo IS NOT NULL
+    IF vmore IS NULL THEN
+      GOTO redisplay
+    ENDIF
+    CHOOSE vimpo FROM #VALUES FOR +
+    (LJS(desno,8) & (LJS(revision,2) & (LJS(dsndesc,30) & (LJS(locate,4) & imppo)))), +
+    imppo FROM prodsched WHERE desno = .vitemcd AND imppo IS NOT NULL +
+    ORDER BY schedno DESC +
+    TITLE 'PO Old History' CAPTION 'Purchase Orders' +
+    LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+    |TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+    |LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+    IF vimpo = '[ESC]' THEN
+      GOTO redisplay
+    ENDIF
+    GOTO redisplay
+  ELSE
+    GOTO endprodsupp
+  ENDIF
+ENDIF
+SET VAR vsupp1 = .vsel
+SET VAR vmore = NULL
+SELECT itemcd INTO vmore INDICATOR vi0 FROM poab WHERE itemcd = .vitemcd AND suppnm = .vsupp1
+IF vmore IS NULL THEN
+  GOTO srchpos
+ENDIF
+CHOOSE vimpo FROM #VALUES FOR +
+(LJS(itemcd,8) & (LJS(itemrev,2) & (LJS(itemdesc,30) & (LJS(suppnm,4) & pono)))), +
+pono FROM poab WHERE itemcd = .vitemcd AND suppnm = .vsupp1 +
+ORDER BY podate DESC +
+TITLE 'Last PO from New History' CAPTION 'Purchase Orders' +
+LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+|TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+|LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+IF vimpo = '[ESC]' THEN
+  GOTO redisplay
+ENDIF
+IF vimpo IS NOT NULL THEN
+  GOTO pocontains
+ENDIF
+LABEL srchpos
+SET VAR vmore = NULL
+SELECT desno INTO vmore INDICATOR vi0 FROM prodsched WHERE desno = .vitemcd AND imppo IS NOT NULL
+IF vmore IS NULL THEN
+  SET VAR vimpo = NULL
+  GOTO pocontains
+ENDIF
+CHOOSE vimpo FROM #VALUES FOR +
+(LJS(desno,8) & (LJS(revision,2) & (LJS(dsndesc,30) & (LJS(locate,4) & imppo)))), +
+imppo FROM prodsched WHERE desno = .vitemcd AND imppo IS NOT NULL +
+ORDER BY schedno DESC +
+TITLE 'Last PO from Schedules' CAPTION 'Purchase Orders' +
+LINES 20 OPTION TITLE_FONT_NAME verdana |TITLE_FONT_SIZE 10 +
+|TITLE_FONT_COLOR 13209 |TITLE_BOLD ON |LIST_FONT_NAME verdana +
+|LIST_FONT_SIZE 8 |THEMENAME R:Base Rocks!
+IF vimpo = '[ESC]' THEN
+  SET VAR vimpo = NULL
+  GOTO redisplay
+ENDIF
+LABEL pocontains
+SET VAR vprc REAL
+SELECT suppbase INTO vprc INDICATOR vi0 FROM prodimp WHERE supploc = .vsupp1 +
+AND produser = .vuser
+SET VAR vid TEXT
+SELECT suppid INTO vid INDICATOR vi0 FROM suppliers WHERE supploc = .vsupp1
+SET VAR vpono = (.vord + .vid)
+SET VAR vpochk TEXT = NULL
+SELECT pono INTO vpochk INDICATOR vi0 FROM pomast WHERE pono = .vpono
+SET VAR vreqdate DATE = NULL
+IF vid = '30' THEN
+  SET VAR vreqdate = (.vreqdt - 2)
+ENDIF
+IF vpochk IS NULL THEN
+  INSERT INTO pomast (ordno,pocd,suppnm,shpreqdt,coolbl,podate,qtyrule) +
+  VALUES .vord, .vid, .vsupp1,.vreqdate,.vcoolbl, .#DATE, .vqtyrule
+ENDIF
+SET VAR vcomm TEXT = NULL
+IF vimpo IS NULL THEN
+  SET VAR vcomm = 'NEW ITEM'
+ELSE
+  SET VAR vcomm = 'AS BEFORE'
+ENDIF
+--rsm Jan 18 2011 add integer variable for traceability vtrace loaded from column orditem.prodt
+SET VAR vunit = itemunit, vdesc = itemdesc, vcost = itemcost, vtrace = prodt IN orditem +
+WHERE ordno = .vord AND itemcd = .vitemcd
+--rsm jan 18 2011 convert traceability integer 0=Y 1 = N into Y N for insert into POITEM table
+SET VAR vTraceChar TEXT = 'Y'
+IF vTrace = 1 then
+   SET VAR vTraceChar = 'N'
+ENDIF
+
+If vcomb = 'm' then
+   SET VAR vunit = itemunit, vdesc = itemdesc IN Itemtbl +
+   Where itemcd = .vitemcd
+Endif
+IF vid = '20' THEN
+  SET VAR vprc NUM (5,2) = NULL
+  SET VAR vprc = (.vcost * .6)
+  SET VAR vprc REAL
+ENDIF
+--rsm Jan 18 2011 add column itemtrc for traceability using var vTraceChar to load it
+INSERT INTO poitem (ordno,pocd,itemcd,itemno,itemrev,itemunit,itemdesc,itemqty, +
+itemqtlo,itemqthi,impcost,itemcost,prevpo,impinst,itempkg, scan, tapeseq, itemtrc) +
+VALUES .vord, .vid, .vitemcd, .vitemno, .vrev, .vunit, .vdesc, .itemqty, +
+.itemqtlo, .itemqthi,.vprc, .vcost, .vimpo, .vcomm, .vitempkg, 'Y', 'Y', .vTraceChar
+
+LABEL endprodsupp
+SET VAR vtpcs INTEGER
+SELECT (SUM(itemqty)) INTO vtpcs FROM poitem WHERE ordno = .vord AND itemcd = .vitemcd
+IF vsupp1 = 'MEX' THEN
+  UPDATE orditem SET itempo = 'P', itemsrc = 'X', prodx = .vtpcs +
+  WHERE ordno = .vord AND itemno = .vitemno  AND itemqty <= .vtpcs
+  GOTO newitem
+ENDIF
+IF vsupp1 = 'USA' THEN
+  UPDATE orditem SET itempo = 'P', itemsrc = 'M', prodm = .vtpcs +
+  WHERE ordno = .vord AND itemno = .vitemno  AND itemqty <= .vtpcs
+  GOTO newitem
+ENDIF
+UPDATE orditem SET itempo = 'P', itemsrc = 'I', prodi = .vtpcs +
+WHERE ordno = .vord AND itemno = .vitemno  AND itemqty <= .vtpcs
+GOTO newitem
+LABEL editpo
+SET VAR vsuppnm TEXT
+SET VAR vpoinit TEXT
+EDIT USING absys_purchord WHERE pono = .vpono
+DIALOG 'Do you want to build supplier files?' vsel vkey yes +
+OPTION MESSAGE_FONT_NAME VERDANA +
+|MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 +
+|MESSAGE_BOLD ON |THEMENAME R:Base Rocks!
+IF vkey = '[ESC]' THEN
+  GOTO leave
+ENDIF
+IF vsel = 'NO' THEN
+  GOTO leave
+ENDIF
+SET VAR vconsv TEXT = NULL
+--IF vsuppnm = 'MEX' THEN
+--  SET VAR vfile = ('H:\MEXPROD\' + .vpono)
+--  SET VAR vfilenm = (.vfile + '.rtf')
+--ELSE
+SET VAR vfile = ('\\ab-stor01\netdrive\Purchasing\IMPORT\' + .vpoinit + '\' + .vsuppnm + '\' + .vpono)
+SET VAR vfilenm = (.vfile + '.rtf')
+--ENDIF
+IF vsuppnm = 'USA' THEN
+  SET VAR vfile = 'PRINTER'
+ENDIF
+
+IF vsuppnm = 'MEX' THEN
+  DIALOG 'Is Purchase Order Ship Direct?' vsel vkey no +
+  OPTION MESSAGE_FONT_NAME VERDANA +
+  |MESSAGE_FONT_COLOR 13209 |MESSAGE_FONT_SIZE 10 +
+  |MESSAGE_BOLD ON |THEMENAME R:Base Rocks!
+  IF vkey = '[ESC]' THEN
+    GOTO noship
+  ENDIF
+  IF vsel = 'NO' THEN
+    GOTO noship
+  ENDIF
+  PRINT pomxdrct WHERE pono = .vpono ORDER BY itemcd OPTION RTF +
+  |FILENAME &vfilenm
+  GOTO skipprt
+ENDIF
+
+LABEL noship
+
+IF vfile = 'PRINTER' THEN
+--rsm feb 2 2012 add code to get acctno for STOCK order special printout
+SELECT ACCTNO into vAcctno INDIC iact FROM POAB WHERE PONO = .vpono
+--rsm Apr 1 2011 - change destination of USA purchase orders
+ -- SET VAR vfile = ('\\ab-fs\netdrive\Purchasing\USAPROD\' + .vpono)
+    SET VAR vfile = ('\\ab-stor01\netdrive\Purchasing\IMPORT\' + .vpoinit + '\' + .vsuppnm + '\' + .vpono)
+  SET VAR vfilenm = (.vfile + '.rtf')
+  SET VAR vlocat TEXT = 'FINISHING'
+  --rsm feb 2 2012 special stock order printing test
+   If vAcctno = '001236' THEN
+       PRINT pousaSTOCK WHERE pono = .vpono ORDER BY itemcd OPTION RTF +
+       |FILENAME &vfilenm
+   ELSE
+       PRINT pousa WHERE pono = .vpono ORDER BY itemcd OPTION RTF +
+       |FILENAME &vfilenm
+  ENDIF
+ELSE
+  PRINT poimport WHERE pono = .vpono ORDER BY itemcd OPTION RTF +
+  |FILENAME &vfilenm
+ENDIF
+LABEL skipprt
+DROP CURSOR cur1
+SET VAR vconsv TEXT = NULL
+DECLARE cur1 CURSOR FOR SELECT itemcd +
+FROM poitem WHERE pono = .vpono ORDER BY itemcd
+OPEN cur1
+LABEL nextcon
+FETCH cur1 INTO vitemcd
+IF SQLCODE <> 100 THEN
+  GOTO prtcon
+ENDIF
+GOTO doneprt
+LABEL prtcon
+IF vconsv = .vitemcd THEN
+  GOTO nextcon
+ENDIF
+Set var vpkgok = itemcd in ItemPacking where itemcd =  .vitemcd
+Set var vasmok = iteminst in Assembly where itemcd =  .vitemcd
+SET VAR vpinchk = itemcd IN pinconst WHERE itemcd = .vitemcd
+SET VAR vhdrchk = desno IN Headerspec WHERE desno = .vitemcd
+IF vpkgok IS NOT NULL THEN
+  SET VAR vfilenmp = (.vfile + '_' + (CTXT(.vitemcd)) + 'P' + '.rtf')
+
+ENDIF
+IF vasmok IS NOT NULL THEN
+  SET VAR vfilenma = (.vfile + '_' + (CTXT(.vitemcd)) + 'A' + '.rtf')
+
+ENDIF
+IF vpinchk IS NOT NULL THEN
+  SET VAR vfilenm = (.vfile + '_' + (CTXT(.vitemcd)) + '.rtf')
+  GOTO pinprt
+ENDIF
+IF vhdrchk IS NOT NULL THEN
+  SET VAR vfilenm = (.vfile + '_' + (CTXT(.vitemcd)) + '.rtf')
+  GOTO hdrprt
+ENDIF
+SET VAR vchk = itemcd IN photoembconst WHERE itemcd = .vitemcd
+IF vfile = 'PRINTER' THEN
+  IF vchk IS NULL THEN
+    PRINT usaconst WHERE desno = .vitemcd AND schedtype = 'C' OPTION PRINTER
+
+  ELSE
+    PRINT pmcprod WHERE itemcd = .vitemcd OPTION PRINTER
+  ENDIF
+  IF vpkgok IS NOT NULL THEN
+     PRINT pkgconstruction WHERE itemcd = .vitemcd  OPTION Printer
+  Endif
+  IF vasmok IS NOT NULL THEN
+     PRINT Assembly WHERE itemcd = .vitemcd  OPTION Printer
+  Endif
+ENDIF
+
+IF vfile <> 'PRINTER' THEN
+  SET VAR vfilenm = (.vfile + '_' + (CTXT(.vitemcd)) + '.rtf')
+ -- IF vchk IS NULL THEN
+ --   PRINT impconst WHERE desno = .vitemcd AND schedtype = 'C' OPTION RTF +
+ --   |FILENAME &vfilenm
+ --rsm Apr 6 2011 changed to print Weaverville construction sheet for USA orders
+  IF vchk IS NULL THEN
+     IF vSuppnm = 'USA' THEN
+       PRINT impconstwv WHERE desno = .vitemcd AND schedtype = 'C' OPTION RTF +
+       |FILENAME &vfilenm
+       GOTO NOTWV
+    ENDIF
+    PRINT impconst WHERE desno = .vitemcd AND schedtype = 'C' OPTION RTF +
+    |FILENAME &vfilenm
+    LABEL NOTWV
+    SET VAR vfilenmd = (.vfile + '_' + (CTXT(.vitemcd)) + 'D' + '.rtf')
+   -- PRINT ConstSpec WHERE desno = .vitemcd AND schedtype = 'C' OPTION RTF +
+  --  |FILENAME &vfilenmd
+  --  PRINT pkgconstruction WHERE itemcd = .vitemcd  OPTION RTF +
+   -- |FILENAME &vfilenmp
+    PRINT Assembly WHERE itemcd = .vitemcd  OPTION RTF +
+    |FILENAME &vfilenma
+  ELSE
+    PRINT pmcprod WHERE itemcd = .vitemcd OPTION RTF +
+    |FILENAME &vfilenm
+
+  --  PRINT pkgconstruction WHERE itemcd = .vitemcd  OPTION RTF +
+  --  |FILENAME &vfilenmp
+    PRINT Assembly WHERE itemcd = .vitemcd  OPTION RTF +
+    |FILENAME &vfilenma
+  ENDIF
+ENDIF
+SET VAR vconsv = .vitemcd
+GOTO nextcon
+LABEL pinprt
+SET VAR vspeccopy TEXT = NULL
+PRINT pinconstruct WHERE itemcd = .vitemcd OPTION RTF +
+|FILENAME &vfilenm
+SET VAR vspeccopy TEXT = '1'
+PRINT pinconstruct WHERE itemcd = .vitemcd OPTION PRINTER
+SET VAR vconsv = .vitemcd
+GOTO nextcon
+LABEL hdrprt
+SET VAR vspeccopy TEXT = NULL
+PRINT HeadConst WHERE desno = .vitemcd OPTION RTF +
+|FILENAME &vfilenm
+SET VAR vspeccopy TEXT = '1'
+PRINT HeadConst WHERE desno = .vitemcd OPTION PRINTER
+SET VAR vconsv = .vitemcd
+GOTO nextcon
+LABEL doneprt
+SET VAR vmoreord = pono IN pomast WHERE ordno = .vord AND shpreqdt IS NULL
+IF vmoreord IS NOT NULL THEN
+  SET VAR vpono = .vmoreord
+  GOTO editpo
+ENDIF
+GOTO start
+LABEL leave
+SET WALKMENU OFF
+CLS
+DROP CURSOR cur1
+CLEAR ALL VAR EXCEPT vloggedinuser
+SET TRACE OFF
+RETURN
